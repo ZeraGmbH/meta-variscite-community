@@ -1,0 +1,8 @@
+#
+# UBIFS for Variscite NAND 4.0 GB MT29F32G08AFACAWP
+#
+UBI_ROOT_FS_NAME = "[rootfs]"
+UBI_VOLNAME  = "rootfs"
+MKUBIFS_ARGS = " -m 4096 -e 504KiB -c 7855 -F "
+UBINIZE_ARGS = " -m 4096 -p 512KiB -s 4096 -O 4096 "
+#
