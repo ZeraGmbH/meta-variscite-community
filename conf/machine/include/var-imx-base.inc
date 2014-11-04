@@ -3,8 +3,18 @@
 include conf/machine/include/imx-base.inc
 
 PREFERRED_PROVIDER_virtual/kernel = "linux-variscite"
-PREFERRED_PROVIDER_virtual/bootloader = "u-boot-imx"
-PREFERRED_PROVIDER_u-boot = "u-boot-imx"
+PREFERRED_PROVIDER_virtual/bootloader = "u-boot-variscite-imx6"
+PREFERRED_PROVIDER_u-boot = "u-boot-variscite-imx6"
+
+SPL_BINARY = "SPL"
+UBOOT_MAKE_TARGET = "all"
+UBOOT_SUFFIX = "img"
+
+UBOOT_CONFIG ??= "sd"
+#UBOOT_CONFIG ??= "nand"
+
+UBOOT_CONFIG[sd] = "mx6var_som_sd_config,sdcard"
+UBOOT_CONFIG[nand] = "mx6var_som_nand_config,ubifs"
 
 IMAGE_FSTYPES = "ubi tar.bz2 ext3 sdcard"
 
