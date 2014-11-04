@@ -19,7 +19,7 @@ UBOOT_CONFIG ??= "sd"
 UBOOT_CONFIG[sd] = "mx6var_som_sd_config,sdcard"
 UBOOT_CONFIG[nand] = "mx6var_som_nand_config,ubifs"
 
-IMAGE_FSTYPES = "ubi tar.bz2 ext3 sdcard"
+IMAGE_FSTYPES = "ubi sdcard"
 
 #
 # UBIFS for Variscite NAND 0.5 GB
