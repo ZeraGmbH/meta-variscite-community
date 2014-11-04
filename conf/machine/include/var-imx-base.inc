@@ -2,6 +2,9 @@
 
 include conf/machine/include/imx-base.inc
 
+IMAGE_CLASSES_remove = "image_types_fsl"
+IMAGE_CLASSES += "image_types_var"
+
 PREFERRED_PROVIDER_virtual/kernel = "linux-variscite"
 PREFERRED_PROVIDER_virtual/bootloader = "u-boot-variscite-imx6"
 PREFERRED_PROVIDER_u-boot = "u-boot-variscite-imx6"
