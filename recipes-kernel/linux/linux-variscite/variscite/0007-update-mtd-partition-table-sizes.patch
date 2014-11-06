@@ -1,0 +1,39 @@
+From 2b7a5fe15d596528771f100658b8930e3449e32a Mon Sep 17 00:00:00 2001
+From: varigit <ron.d@variscite.com>
+Date: Thu, 3 Jul 2014 16:52:58 +0300
+Subject: [PATCH 07/13] update mtd partition table sizes
+
+---
+ arch/arm/boot/dts/imx6q-var-som-ldo.dts | 2 +-
+ arch/arm/boot/dts/imx6qdl-var-som.dtsi  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6q-var-som-ldo.dts b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+index bb5f0ad..1c80bf8 100644
+--- a/arch/arm/boot/dts/imx6q-var-som-ldo.dts
++++ b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+@@ -40,7 +40,7 @@
+ 
+ 	partition@0 {
+ 		label = "bootloader";
+-		reg = <0x00000000 0x001e0000>;
++		reg = <0x00000000 0x00200000>;
+ 	};
+ 
+ 	partition@1 {
+diff --git a/arch/arm/boot/dts/imx6qdl-var-som.dtsi b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+index 2c67605..5be7a46 100644
+--- a/arch/arm/boot/dts/imx6qdl-var-som.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+@@ -623,7 +623,7 @@
+ 
+ 	partition@0 {
+ 		label = "bootloader";
+-		reg = <0x00000000 0x001e0000>;
++		reg = <0x00000000 0x00200000>;
+ 	};
+ 
+ 	partition@1 {
+-- 
+1.8.3.1
+

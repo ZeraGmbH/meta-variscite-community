@@ -1,0 +1,81 @@
+From 9a06149ae4bfb6542ea49900bbe9d36af88c4fb5 Mon Sep 17 00:00:00 2001
+From: varigit <ron.d@variscite.com>
+Date: Mon, 25 Aug 2014 15:07:58 +0300
+Subject: [PATCH 12/13] MTD Partition sizes update to DTS files.
+
+---
+ arch/arm/boot/dts/imx6q-var-som-ldo.dts | 11 ++++++-----
+ arch/arm/boot/dts/imx6qdl-var-som.dtsi  | 11 ++++++-----
+ 2 files changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6q-var-som-ldo.dts b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+index 9373627..3fb308e 100644
+--- a/arch/arm/boot/dts/imx6q-var-som-ldo.dts
++++ b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+@@ -55,23 +55,24 @@
+ 	status = "okay";
+ 
+ 	partition@0 {
+-		label = "bootloader";
++		label = "spl";
+ 		reg = <0x00000000 0x00200000>;
+ 	};
+ 
+ 	partition@1 {
+-		label = "dtb";
+-		reg = <0x001e0000 0x00020000>;
++		label = "bootloader";
++		reg = <0x00200000 0x00200000>;
+ 	};
+ 
++
+ 	partition@2 {
+ 		label = "kernel";
+-		reg = <0x00200000 0x00600000>;
++		reg = <0x00400000 0x00600000>;
+ 	};
+ 
+ 	partition@3 {
+ 		label = "rootfs";
+-		reg = <0x00800000 0xff800000>;
++		reg = <0x00A00000 0xff800000>;
+ 	};
+ 
+ };
+diff --git a/arch/arm/boot/dts/imx6qdl-var-som.dtsi b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+index da930d1..f9965ac 100644
+--- a/arch/arm/boot/dts/imx6qdl-var-som.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+@@ -511,23 +511,24 @@
+ 	status = "okay";
+ 
+ 	partition@0 {
+-		label = "bootloader";
++		label = "spl";
+ 		reg = <0x00000000 0x00200000>;
+ 	};
+ 
+ 	partition@1 {
+-		label = "dtb";
+-		reg = <0x001e0000 0x00020000>;
++		label = "bootloader";
++		reg = <0x00200000 0x00200000>;
+ 	};
+ 
++
+ 	partition@2 {
+ 		label = "kernel";
+-		reg = <0x00200000 0x00600000>;
++		reg = <0x00400000 0x00600000>;
+ 	};
+ 
+ 	partition@3 {
+ 		label = "rootfs";
+-		reg = <0x00800000 0x1f800000>;
++		reg = <0x00a00000 0x1f800000>;
+ 	};
+ 
+ };
+-- 
+1.8.3.1
+

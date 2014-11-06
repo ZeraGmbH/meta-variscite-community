@@ -8,57 +8,28 @@ DEPENDS += "lzop-native bc-native"
 
 COMPATIBLE_MACHINE = "(mx6)"
 
-SRC_URI = "git://github.com/varigit/linux-2.6-imx.git;protocol=git;branch=imx_3.10.17_1.0.0_ga_beta_var2"
+SRCBRANCH = "imx_3.10.17_1.0.0_ga"
+SRCREV = "8ab15a209a92b62f72e3721dd1780baac59d7082"
 
-SRCREV = "bb5299787c829b78f2e972eb4d451ff41a1f4bfb"
+SRC_URI += " \
+	file://variscite/0001-Variscite-VAR-SOM-MX6-support.patch \
+	file://variscite/0002-Update-MIPI-CSI-ID.patch \
+	file://variscite/0003-Update-operating-points-to-support-reboot-select-wdo.patch \
+	file://variscite/0004-Enable-GPIO-support-for-MMC-port-used-by-wilink.patch \
+	file://variscite/0005-vgen2-regulator-voltage-update.-Fixed-Audio.patch \
+	file://variscite/0007-update-mtd-partition-table-sizes.patch \
+	file://variscite/0008-Temporary-workaround-Set-1.2GHZ-SOMs-OPPs-to-1.2Ghz.patch \
+	file://variscite/0009-Structural-modification-to-DTS-files.-Regulators-def.patch \
+	file://variscite/0010-More-regulators-definitions-fine-tune.patch \
+	file://variscite/0011-More-2-regulators-definitions-fine-tune.patch \
+	file://variscite/0012-MTD-Partition-sizes-update-to-DTS-files.patch \
+	file://variscite/0013-Update-WILINK-network-paramters.patch \
+	\
+	file://schnitzeltony/0001-mxc_hdmi.c-parse-EDID-extensions-only-in-case-monito.patch \
+	file://schnitzeltony/0002-mxc_hdmi-allow-EDID-to-select-VESA-modes.patch \
+	file://schnitzeltony/0003-fbmon.c-enable-verbose-debug.patch \
+"
 
-FSL_KERNEL_DEFCONFIG = "imx_v7_var_defconfig"
-
-LOCALVERSION = "-1.0.0_beta"
-
-IMX_TEST_SUPPORT = "y"
-
-do_configure_prepend() {
-   # In some cases we'll use a different defconfig
-   # example is manufacturing image which uses imx_v7_mfg_defconfig
-   # however need way to change it back during daily build
-
-   if [ -z "${FSL_KERNEL_DEFCONFIG}" ] ; then
-       echo " defconfig from local.conf not set"
-       fsl_defconfig='imx_v7_defconfig'
-   else
-       echo " Use local.conf for defconfig to set"
-       fsl_defconfig=${FSL_KERNEL_DEFCONFIG}
-   fi
-
-   # check that defconfig file exists
-   if [ ! -e "${S}/arch/arm/configs/$fsl_defconfig" ]; then
-       fsl_defconfig='imx_v7_defconfig'
-   fi
+LOCALVERSION = "+variscite-beta_var2+imx-1.0.2_ga"
 
 
-    cp ${S}/arch/arm/configs/${fsl_defconfig} ${S}/.config
-    cp ${S}/arch/arm/configs/${fsl_defconfig} ${S}/../defconfig
-}
-
-# copy zImage to deploy directory
-# update uImage with defconfig ane git info in name
-# this is since build script can build multiple ways
-# and will overwrite previous builds
-
-do_deploy_append () {
-    install -d ${DEPLOY_DIR_IMAGE}
-
-    if [ -z "${FSL_KERNEL_DEFCONFIG}" ] ; then
-       fsl_defconfig='imx_v7_defconfig'
-    else
-       fsl_defconfig=${FSL_KERNEL_DEFCONFIG}
-       # check that defconfig file exists
-       if [ ! -e "${S}/arch/arm/configs/${FSL_KERNEL_DEFCONFIG}" ]; then
-           fsl_defconfig='imx_v7_defconfig'
-       fi
-    fi
-
-    install  arch/arm/boot/uImage ${DEPLOY_DIR_IMAGE}/uImage_$fsl_defconfig
-    install  arch/arm/boot/zImage ${DEPLOY_DIR_IMAGE}/zImage_$fsl_defconfig
-}

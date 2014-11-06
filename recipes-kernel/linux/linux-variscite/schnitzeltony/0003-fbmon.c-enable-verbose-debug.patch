@@ -1,0 +1,29 @@
+From 2638091a8b29d205f83de5a767f597091360ca34 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 6 Nov 2014 11:39:02 +0100
+Subject: [PATCH 3/3] fbmon.c: enable verbose debug
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/video/fbmon.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/fbmon.c b/drivers/video/fbmon.c
+index 6103fa6..2613939 100644
+--- a/drivers/video/fbmon.c
++++ b/drivers/video/fbmon.c
+@@ -43,7 +43,7 @@
+  * EDID parser
+  */
+ 
+-#undef DEBUG  /* define this for verbose EDID parsing output */
++#define DEBUG  /* define this for verbose EDID parsing output */
+ 
+ #ifdef DEBUG
+ #define DPRINTK(fmt, args...) printk(fmt,## args)
+-- 
+1.8.3.1
+

@@ -1,0 +1,7111 @@
+From 961c38fbcc1c5fa8bb10349f91fb34cacd6e74a4 Mon Sep 17 00:00:00 2001
+From: varigit <ron.d@variscite.com>
+Date: Wed, 25 Jun 2014 12:20:15 +0300
+Subject: [PATCH 01/13] Variscite VAR-SOM-MX6 support
+
+---
+ .../devicetree/bindings/input/ads7846.txt          |   91 +
+ arch/arm/boot/dts/Makefile                         |    5 +
+ arch/arm/boot/dts/imx6dl-pinfunc.h                 |    2 +
+ arch/arm/boot/dts/imx6dl-var-som.dts               |  145 +
+ arch/arm/boot/dts/imx6q-pinfunc.h                  |    2 +
+ arch/arm/boot/dts/imx6q-var-som-hdcp.dts           |   25 +
+ arch/arm/boot/dts/imx6q-var-som-ldo.dts            |   62 +
+ arch/arm/boot/dts/imx6q-var-som.dts                |   44 +
+ arch/arm/boot/dts/imx6qdl-var-som.dtsi             |  687 ++++
+ arch/arm/boot/dts/imx6qdl.dtsi                     |   74 +-
+ arch/arm/boot/dts/imx6sl-var-som.dts               |  145 +
+ arch/arm/configs/imx_v7_var_defconfig              | 3752 ++++++++++++++++++++
+ arch/arm/mach-imx/mach-imx6q.c                     |    6 +-
+ drivers/input/touchscreen/Kconfig                  |   13 +
+ drivers/input/touchscreen/Makefile                 |    1 +
+ drivers/input/touchscreen/ads7846.c                |  123 +-
+ drivers/input/touchscreen/ctw6120.c                |  421 +++
+ drivers/mmc/host/sdhci.c                           |    9 +
+ drivers/net/wireless/ti/wlcore/sdio.c              |   70 +-
+ drivers/regulator/core.c                           |    7 +-
+ drivers/video/mxc/ldb.c                            |   16 +
+ include/linux/i2c/ctw6120.h                        |   77 +
+ net/rfkill/rfkill-gpio.c                           |   76 +-
+ net/rfkill/rfkill-regulator.c                      |   45 +-
+ sound/soc/fsl/Kconfig                              |   15 +
+ sound/soc/fsl/Makefile                             |    2 +
+ sound/soc/fsl/imx-tlv320aic3x.c                    |  580 +++
+ 27 files changed, 6445 insertions(+), 50 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/input/ads7846.txt
+ create mode 100644 arch/arm/boot/dts/imx6dl-var-som.dts
+ create mode 100644 arch/arm/boot/dts/imx6q-var-som-hdcp.dts
+ create mode 100644 arch/arm/boot/dts/imx6q-var-som-ldo.dts
+ create mode 100644 arch/arm/boot/dts/imx6q-var-som.dts
+ create mode 100644 arch/arm/boot/dts/imx6qdl-var-som.dtsi
+ create mode 100644 arch/arm/boot/dts/imx6sl-var-som.dts
+ create mode 100644 arch/arm/configs/imx_v7_var_defconfig
+ create mode 100644 drivers/input/touchscreen/ctw6120.c
+ create mode 100644 include/linux/i2c/ctw6120.h
+ create mode 100644 sound/soc/fsl/imx-tlv320aic3x.c
+
+diff --git a/Documentation/devicetree/bindings/input/ads7846.txt b/Documentation/devicetree/bindings/input/ads7846.txt
+new file mode 100644
+index 0000000..5f7619c
+--- /dev/null
++++ b/Documentation/devicetree/bindings/input/ads7846.txt
+@@ -0,0 +1,91 @@
++Device tree bindings for TI's ADS7843, ADS7845, ADS7846, ADS7873, TSC2046
++SPI driven touch screen controllers.
++
++The node for this driver must be a child node of a SPI controller, hence
++all mandatory properties described in
++
++	Documentation/devicetree/bindings/spi/spi-bus.txt
++
++must be specified.
++
++Additional required properties:
++
++	compatible		Must be one of the following, depending on the
++				model:
++					"ti,tsc2046"
++					"ti,ads7843"
++					"ti,ads7845"
++					"ti,ads7846"
++					"ti,ads7873"
++
++	interrupt-parent
++	interrupts		An interrupt node describing the IRQ line the chip's
++				!PENIRQ pin is connected to.
++	vcc-supply		A regulator node for the supply voltage.
++
++
++Optional properties:
++
++	ti,vref-delay-usecs		vref supply delay in usecs, 0 for
++					external vref (u16).
++	ti,vref-mv			The VREF voltage, in millivolts (u16).
++	ti,keep-vref-on			set to keep vref on for differential
++					measurements as well
++	ti,swap-xy			swap x and y axis
++	ti,settle-delay-usec		Settling time of the analog signals;
++					a function of Vcc and the capacitance
++					on the X/Y drivers.  If set to non-zero,
++					two samples are taken with settle_delay
++					us apart, and the second one is used.
++					~150 uSec with 0.01uF caps (u16).
++	ti,penirq-recheck-delay-usecs	If set to non-zero, after samples are
++					taken this delay is applied and penirq
++					is rechecked, to help avoid false
++					events.  This value is affected by the
++					material used to build the touch layer
++					(u16).
++	ti,x-plate-ohms			Resistance of the X-plate,
++					in Ohms (u16).
++	ti,y-plate-ohms			Resistance of the Y-plate,
++					in Ohms (u16).
++	ti,x-min			Minimum value on the X axis (u16).
++	ti,y-min			Minimum value on the Y axis (u16).
++	ti,x-max			Maximum value on the X axis (u16).
++	ti,y-max			Minimum value on the Y axis (u16).
++	ti,pressure-min			Minimum reported pressure value
++					(threshold) - u16.
++	ti,pressure-max			Maximum reported pressure value (u16).
++	ti,debounce-max			Max number of additional readings per
++					sample (u16).
++	ti,debounce-tol			Tolerance used for filtering (u16).
++	ti,debounce-rep			Additional consecutive good readings
++					required after the first two (u16).
++	ti,pendown-gpio-debounce	Platform specific debounce time for the
++					pendown-gpio (u32).
++	pendown-gpio			GPIO handle describing the pin the !PENIRQ
++					line is connected to.
++	linux,wakeup			use any event on touchscreen as wakeup event.
++
++
++Example for a TSC2046 chip connected to an McSPI controller of an OMAP SoC::
++
++	spi_controller {
++		tsc2046@0 {
++			reg = <0>;	/* CS0 */
++			compatible = "ti,tsc2046";
++			interrupt-parent = <&gpio1>;
++			interrupts = <8 0>;	/* BOOT6 / GPIO 8 */
++			spi-max-frequency = <1000000>;
++			pendown-gpio = <&gpio1 8 0>;
++			vcc-supply = <&reg_vcc3>;
++
++			ti,x-min = /bits/ 16 <0>;
++			ti,x-max = /bits/ 16 <8000>;
++			ti,y-min = /bits/ 16 <0>;
++			ti,y-max = /bits/ 16 <4800>;
++			ti,x-plate-ohms = /bits/ 16 <40>;
++			ti,pressure-max = /bits/ 16 <255>;
++
++			linux,wakeup;
++		};
++	};
+diff --git a/arch/arm/boot/dts/Makefile b/arch/arm/boot/dts/Makefile
+index c5f9a19..1b9370e 100644
+--- a/arch/arm/boot/dts/Makefile
++++ b/arch/arm/boot/dts/Makefile
+@@ -124,6 +124,11 @@ dtb-$(CONFIG_ARCH_MXC) += \
+ 	imx6dl-wandboard.dtb \
+ 	imx6q-arm2.dtb \
+ 	imx6q-sabreauto.dtb \
++	imx6q-var-som.dtb \
++	imx6q-var-som-ldo.dtb \
++	imx6dl-var-som.dtb \
++	imx6sl-var-som.dtb \
++	imx6q-nitrogen6x.dtb \
+ 	imx6q-sabreauto-ecspi.dtb \
+ 	imx6q-sabreauto-flexcan1.dtb \
+ 	imx6q-sabreauto-gpmi-weim.dtb \
+diff --git a/arch/arm/boot/dts/imx6dl-pinfunc.h b/arch/arm/boot/dts/imx6dl-pinfunc.h
+index b81a7a4..ab427a0 100644
+--- a/arch/arm/boot/dts/imx6dl-pinfunc.h
++++ b/arch/arm/boot/dts/imx6dl-pinfunc.h
+@@ -669,6 +669,8 @@
+ #define MX6QDL_PAD_ENET_RX_ER__ENET_1588_EVENT2_OUT 0x1f4 0x5c4 0x000 0x4 0x0
+ #define MX6QDL_PAD_ENET_RX_ER__GPIO1_IO24           0x1f4 0x5c4 0x000 0x5 0x0
+ #define MX6QDL_PAD_ENET_RXD0__ENET_RX_DATA0         0x1f8 0x5c8 0x818 0x1 0x0
++// Var Som wilink MUX
++#define MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT        0x1f8 0x000 0x000 0x0 0x0
+ #define MX6QDL_PAD_ENET_RXD0__ESAI_TX_HF_CLK        0x1f8 0x5c8 0x838 0x2 0x0
+ #define MX6QDL_PAD_ENET_RXD0__SPDIF_OUT             0x1f8 0x5c8 0x000 0x3 0x0
+ #define MX6QDL_PAD_ENET_RXD0__GPIO1_IO27            0x1f8 0x5c8 0x000 0x5 0x0
+diff --git a/arch/arm/boot/dts/imx6dl-var-som.dts b/arch/arm/boot/dts/imx6dl-var-som.dts
+new file mode 100644
+index 0000000..b1203d2
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6dl-var-som.dts
+@@ -0,0 +1,145 @@
++/*
++ * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
++ * Donio Ron: ron.d@variscite.com
++ * 
++ * Copyright (C) 2013 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++/dts-v1/;
++
++#include "imx6dl.dtsi"
++#include "imx6qdl-var-som.dtsi"
++
++/ {
++	model = "Freescale i.MX6 DualLite Variscite System On A Module";
++	compatible = "fsl,imx6dl-var-som", "fsl,imx6dl";
++};
++
++#if 0
++&battery {
++	offset-charger = <1485>;
++	offset-discharger = <1464>;
++	offset-usb-charger = <1285>;
++};
++
++&i2c3 {
++	max17135@48 {
++		compatible = "maxim,max17135";
++		reg = <0x48>;
++		vneg_pwrup = <1>;
++		gvee_pwrup = <1>;
++		vpos_pwrup = <2>;
++		gvdd_pwrup = <1>;
++		gvdd_pwrdn = <1>;
++		vpos_pwrdn = <2>;
++		gvee_pwrdn = <1>;
++		vneg_pwrdn = <1>;
++		SENSOR-supply = <&reg_sensor>;
++		gpio_pmic_pwrgood = <&gpio2 21 0>;
++		gpio_pmic_vcom_ctrl = <&gpio3 17 0>;
++		gpio_pmic_wakeup = <&gpio3 20 0>;
++		gpio_pmic_v3p3 = <&gpio2 20 0>;
++		gpio_pmic_intr = <&gpio2 25 0>;
++
++		regulators {
++			DISPLAY_reg: DISPLAY {
++				regulator-name = "DISPLAY";
++			};
++
++			GVDD_reg: GVDD {
++				/* 20v */
++				regulator-name = "GVDD";
++			};
++
++			GVEE_reg: GVEE {
++				/* -22v */
++				regulator-name = "GVEE";
++			};
++
++			HVINN_reg: HVINN {
++				/* -22v */
++				regulator-name = "HVINN";
++			};
++
++			HVINP_reg: HVINP {
++				/* 20v */
++				regulator-name = "HVINP";
++			};
++
++			VCOM_reg: VCOM {
++				regulator-name = "VCOM";
++				/* 2's-compliment, -4325000 */
++				regulator-min-microvolt = <0xffbe0178>;
++				/* 2's-compliment, -500000 */
++				regulator-max-microvolt = <0xfff85ee0>;
++			};
++
++			VNEG_reg: VNEG {
++				/* -15v */
++				regulator-name = "VNEG";
++			};
++
++			VPOS_reg: VPOS {
++				/* 15v */
++				regulator-name = "VPOS";
++			};
++
++			V3P3_reg: V3P3 {
++				regulator-name = "V3P3";
++			};
++		};
++	};
++};
++
++&iomuxc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_hog_1>, <&pinctrl_hog_2>;
++
++	hog {
++		pinctrl_hog_2: hoggrp-2 {
++			fsl,pins = <
++				/* MAX17135 */
++				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x80000000
++				MX6QDL_PAD_EIM_D17__GPIO3_IO17 0x80000000
++				MX6QDL_PAD_EIM_D20__GPIO3_IO20 0x80000000
++				MX6QDL_PAD_EIM_A18__GPIO2_IO20 0x80000000
++				MX6QDL_PAD_EIM_OE__GPIO2_IO25 0x80000000
++				/* elan touch */
++				MX6QDL_PAD_EIM_A20__GPIO2_IO18 0x80000000
++				MX6QDL_PAD_EIM_DA8__GPIO3_IO08 0x80000000
++				MX6QDL_PAD_EIM_D28__GPIO3_IO28 0x170b0
++			>;
++		};
++	};
++};
++
++&epdc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_epdc_0>;
++	V3P3-supply = <&V3P3_reg>;
++	VCOM-supply = <&VCOM_reg>;
++	DISPLAY-supply = <&DISPLAY_reg>;
++	status = "okay";
++};
++#endif
++
++&ldb {
++	ipu_id = <0>;
++	sec_ipu_id = <0>;
++};
++
++&mxcfb1 {
++	status = "okay";
++};
++
++&mxcfb2 {
++	status = "okay";
++};
++
++&pxp {
++	status = "okay";
++};
+diff --git a/arch/arm/boot/dts/imx6q-pinfunc.h b/arch/arm/boot/dts/imx6q-pinfunc.h
+index 97ed081..053ebd8 100644
+--- a/arch/arm/boot/dts/imx6q-pinfunc.h
++++ b/arch/arm/boot/dts/imx6q-pinfunc.h
+@@ -552,6 +552,8 @@
+ #define MX6QDL_PAD_ENET_RXD1__ENET_1588_EVENT3_OUT  0x1e0 0x4f4 0x000 0x4 0x0
+ #define MX6QDL_PAD_ENET_RXD1__GPIO1_IO26            0x1e0 0x4f4 0x000 0x5 0x0
+ #define MX6QDL_PAD_ENET_RXD0__ENET_RX_DATA0         0x1e4 0x4f8 0x848 0x1 0x1
++// Var Som wilink MUX
++#define MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT        0x1e4 0x000 0x0 0x0 0x0
+ #define MX6QDL_PAD_ENET_RXD0__ESAI_TX_HF_CLK        0x1e4 0x4f8 0x868 0x2 0x0
+ #define MX6QDL_PAD_ENET_RXD0__SPDIF_OUT             0x1e4 0x4f8 0x000 0x3 0x0
+ #define MX6QDL_PAD_ENET_RXD0__GPIO1_IO27            0x1e4 0x4f8 0x000 0x5 0x0
+diff --git a/arch/arm/boot/dts/imx6q-var-som-hdcp.dts b/arch/arm/boot/dts/imx6q-var-som-hdcp.dts
+new file mode 100644
+index 0000000..fdfa21d9
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6q-var-som-hdcp.dts
+@@ -0,0 +1,25 @@
++/*
++ * Copyright 2012-2013 Freescale Semiconductor, Inc.
++ * Copyright 2011 Linaro Ltd.
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++#include "imx6q-var-som.dts"
++
++&hdmi_video {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_hdmi_hdcp_1>;
++	fsl,hdcp;
++};
++
++&i2c2 {
++	status = "disable";
++};
++
++
+diff --git a/arch/arm/boot/dts/imx6q-var-som-ldo.dts b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+new file mode 100644
+index 0000000..bb5f0ad
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+@@ -0,0 +1,62 @@
++/*
++ * Copyright 2012 Freescale Semiconductor, Inc.
++ * Copyright 2011 Linaro Ltd.
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++
++#include "imx6q-var-som.dts"
++
++&cpu0 {
++	arm-supply = <&reg_arm>;
++	soc-supply = <&reg_soc>;
++	pu-supply = <&reg_pu>; /* use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&gpc {
++	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
++	fsl,wdog-reset = <1>; /* watchdog select of reset source */
++	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&gpu {
++	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&vpu {
++	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&gpmi {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_gpmi_nand_v1>;
++	status = "okay";
++
++	partition@0 {
++		label = "bootloader";
++		reg = <0x00000000 0x001e0000>;
++	};
++
++	partition@1 {
++		label = "dtb";
++		reg = <0x001e0000 0x00020000>;
++	};
++
++	partition@2 {
++		label = "kernel";
++		reg = <0x00200000 0x00600000>;
++	};
++
++	partition@3 {
++		label = "rootfs";
++		reg = <0x00800000 0xff800000>;
++	};
++
++};
++
+diff --git a/arch/arm/boot/dts/imx6q-var-som.dts b/arch/arm/boot/dts/imx6q-var-som.dts
+new file mode 100644
+index 0000000..5b33500
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6q-var-som.dts
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
++ * Donio Ron: ron.d@variscite.com
++ *
++ * Copyright 2012 Freescale Semiconductor, Inc.
++ * Copyright 2011 Linaro Ltd.
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++/dts-v1/;
++
++#include "imx6q.dtsi"
++#include "imx6qdl-var-som.dtsi"
++
++/ {
++	model = "Freescale i.MX6 Quad Variscite System On A Module";
++	compatible = "fsl,imx6q-var-som", "fsl,imx6q";
++};
++
++&mxcfb1 {
++	status = "okay";
++};
++
++&mxcfb2 {
++	status = "okay";
++};
++
++&mxcfb3 {
++	status = "okay";
++};
++
++&mxcfb4 {
++	status = "okay";
++};
++
++&sata {
++	status = "okay";
++};
+diff --git a/arch/arm/boot/dts/imx6qdl-var-som.dtsi b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+new file mode 100644
+index 0000000..7c1927b
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+@@ -0,0 +1,687 @@
++/*
++ * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
++ * Donio Ron: ron.d@variscite.com
++ *
++ * Copyright 2012 Freescale Semiconductor, Inc.
++ * Copyright 2011 Linaro Ltd.
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ *
++ */
++
++/ {
++	aliases {
++		mxcfb0 = &mxcfb1;
++		mxcfb1 = &mxcfb2;
++		mxcfb2 = &mxcfb3;
++		mxcfb3 = &mxcfb4;
++	};
++
++	memory {
++		reg = <0x10000000 0x40000000>;
++	};
++
++	regulators {
++		compatible = "simple-bus";
++
++		reg_usb_otg_vbus: usb_otg_vbus {
++			compatible = "regulator-fixed";
++			regulator-name = "usb_otg_vbus";
++			regulator-min-microvolt = <5000000>;
++			regulator-max-microvolt = <5000000>;
++			enable-active-high;
++		};
++
++		reg_usb_h1_vbus: usb_h1_vbus {
++			compatible = "regulator-fixed";
++			regulator-name = "usb_h1_vbus";
++			regulator-min-microvolt = <5000000>;
++			regulator-max-microvolt = <5000000>;
++		};
++
++		reg_audio: tlv320aic3x_supply {
++			compatible = "regulator-fixed";
++			regulator-name = "tlv320aic3x-supply";
++			enable-active-high;
++		};
++#if 0
++		reg_sensor: sensor_supply {
++			compatible = "regulator-fixed";
++			regulator-name = "sensor-supply";
++			regulator-min-microvolt = <3300000>;
++			regulator-max-microvolt = <3300000>;
++			gpio = <&gpio2 31 0>;
++			startup-delay-us = <500>;
++			enable-active-high;
++		};
++#endif
++		reg_3p3v: 3p3v {
++			compatible = "regulator-fixed";
++			regulator-name = "3P3V";
++			regulator-min-microvolt = <3300000>;
++			regulator-max-microvolt = <3300000>;
++			regulator-always-on;
++		};
++
++		wlcore {
++			compatible = "wlcore";
++			gpio = <207>;   /* The wl8 driver expects gpio to be an integer, so gpio6_17 is (6-1)*32+17=207
++			        	   irq property must not be set as driver derives irq number from gpio if no irq set
++		 			   use edge irqs for suspend/resume */
++			platform-quirks = <1>;
++			/* if a 12xx card is there, configure the clock to WL12XX_REFCLOCK_38_XTAL */
++			board-ref-clock = <4>;
++		};
++
++		wlan_en_reg: fixedregulator@2 {
++			compatible = "regulator-fixed";
++			regulator-name = "wlan-en-regulator";
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++
++			/* WLAN_EN GPIO for this board - Bank7, pin8 */
++			gpio = <&gpio7 8 0>;
++
++			/* WLAN card specific delay */
++			startup-delay-us = <70000>;
++			enable-active-high;
++		};
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++		power {
++			label = "Back";
++			gpios = <&gpio5 20 0>;
++			linux,code = <158>; /* KEY_BACK */
++		};
++	};
++
++	sound {
++		compatible = "fsl,imx6q-var-som-tlv320aic3x", "fsl,imx-audio-tlv320aic3x";
++		model = "tlv320aic3x-audio";
++		ssi-controller = <&ssi2>;
++		audio-codec = <&codec>;
++		audio-routing =
++			/* Headphone connected to HPLOUT, HPROUT */
++			"Headphone Jack",       "HPLOUT",
++			"Headphone Jack",       "HPROUT",
++			/* Line Out connected to LLOUT, RLOUT */
++			"Line Out",      	"LLOUT",
++			"Line Out",     	"RLOUT",
++			/* Mic connected to (MIC3L | MIC3R) */
++			"Mic Bias",		"MIC3L",
++			"Mic Bias",		"MIC3R",
++			"Mic Jack",		"Mic Bias",
++			/* Line In connected to (LINE1L | LINE2L), (LINE1R | LINE2R) */
++			"Line In",		"LINE1L",
++			"Line In",		"LINE2L",
++			"Line In",		"LINE1R",
++			"Line In",		"LINE2R";
++		mux-int-port = <2>;
++		mux-ext-port = <3>;
++	};
++
++	sound-hdmi {
++		compatible = "fsl,imx6q-audio-hdmi",
++			     "fsl,imx-audio-hdmi";
++		model = "imx-audio-hdmi";
++		hdmi-controller = <&hdmi_audio>;
++	};
++
++	mxcfb1: fb@0 {
++		compatible = "fsl,mxc_sdc_fb";
++		disp_dev = "ldb";
++		interface_pix_fmt = "RGB24";
++		mode_str ="VAR-WVGA-CTW";
++		default_bpp = <16>;
++		int_clk = <0>;
++		late_init = <0>;
++		status = "okay";
++	};
++
++	mxcfb2: fb@1 {
++		compatible = "fsl,mxc_sdc_fb";
++		disp_dev = "hdmi";
++		interface_pix_fmt = "RGB24";
++		mode_str ="1920x1080M@60";
++		default_bpp = <24>;
++		int_clk = <0>;
++		late_init = <0>;
++		status = "okay";
++	};
++
++	mxcfb3: fb@2 {
++		compatible = "fsl,mxc_sdc_fb";
++		disp_dev = "lcd";
++		interface_pix_fmt = "RGB565";
++		mode_str ="CLAA-WVGA";
++		default_bpp = <16>;
++		int_clk = <0>;
++		late_init = <0>;
++		status = "disabled";
++	};
++
++	mxcfb4: fb@3 {
++		compatible = "fsl,mxc_sdc_fb";
++		disp_dev = "ldb";
++		interface_pix_fmt = "RGB666";
++		mode_str ="LDB-XGA";
++		default_bpp = <16>;
++		int_clk = <0>;
++		late_init = <0>;
++		status = "disabled";
++	};
++
++	lcd@0 {
++		compatible = "fsl,lcd";
++		ipu_id = <0>;
++		disp_id = <0>;
++		default_ifmt = "RGB565";
++//		pinctrl-names = "default";
++//		pinctrl-0 = <&pinctrl_ipu1_1>;
++		status = "okay";
++	};
++
++	backlight {
++		compatible = "pwm-backlight";
++		gpios = <&gpio4 30 1>;
++		pwms = <&pwm4 0 5000000>;
++		brightness-levels = <0 4 8 16 32 64 128 255>;
++		default-brightness-level = <128>;
++	};
++
++	v4l2_cap_0 {
++		compatible = "fsl,imx6q-v4l2-capture";
++		ipu_id = <0>;
++		csi_id = <1>;
++		mclk_source = <0>;
++		status = "okay";
++	};
++
++	v4l2_out {
++		compatible = "fsl,mxc_v4l2_output";
++		status = "okay";
++	};
++
++
++	wlan {
++		compatible = "ti,wilink6";
++		interrupt-parent = <&gpio6>;
++		interrupts = <17 0>;
++		clocks = <&refclock>;
++		clock-names = "refclock";
++
++		refclock: refclock {
++			compatible = "ti,wilink-clock";
++			#clock-cells = <0>;
++			clock-frequency = <38400000>;
++		};
++	};
++
++	wlan_bt_rfkill {
++		compatible = "net,rfkill-gpio";
++		name = "wlan_bt_rfkill";
++		type = <2>;     /* bluetooth */
++		gpios = <&gpio6 18 0>;
++	};
++
++
++#if 0
++	lvds_cabc_ctrl {
++		lvds0-gpios = <&gpio6 15 0>;
++		lvds1-gpios = <&gpio6 16 0>;
++	};
++#endif
++};
++
++&audmux {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_audmux_2>;
++	status = "okay";
++};
++
++&cpu0 {
++	arm-supply = <&sw1a_reg>;
++	soc-supply = <&sw1c_reg>;
++	pu-supply = <&pu_dummy>; /* use pu_dummy if VDDSOC share with VDDPU */
++};
++
++#if 0
++&ecspi3 {
++	fsl,spi-num-chipselects = <0>;
++	cs-gpios = <&gpio4 24 0>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_ecspi3_1>;
++	status = "okay";
++
++	ads7846@0 {
++		reg = <0>;	/* CS0 */
++		compatible = "ti,ads7846";
++		interrupt-parent = <&gpio4>;
++		interrupts = <25 0>;	
++		spi-max-frequency = <1500000>;
++		pendown-gpio = <&gpio4 25 0>;
++		vcc-supply = <&reg_soc>;
++		ti,x-min = /bits/ 16 <4200>;
++		ti,x-max = /bits/ 16 <8080>;
++		ti,y-min = /bits/ 16 <4330>;
++		ti,y-max = /bits/ 16 <7980>;
++		ti,x-plate-ohms = /bits/ 16 <180>;
++		ti,pressure-max = /bits/ 16 <255>;
++		ti,debounce-max	= /bits/ 16 <10>;
++		ti,debounce-tol = /bits/ 16 <3>;
++		ti,debounce-rep	= /bits/ 16 <1>;
++		ti,settle-delay-usec	= /bits/ 16 <150>;
++		ti,keep-vref-on;	
++		linux,wakeup;
++		};
++};
++#endif
++
++&fec {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_enet_4>;
++	phy-mode = "rgmii";
++	status = "okay";
++};
++
++&gpc {
++	fsl,cpu_pupscr_sw2iso = <0xf>;
++	fsl,cpu_pupscr_sw = <0xf>;
++	fsl,cpu_pdnscr_iso2sw = <0x1>;
++	fsl,cpu_pdnscr_iso = <0x1>;
++	fsl,ldo-bypass = <1>; 			/* use ldo-bypass, u-boot will check it and configure */
++	fsl,wdog-reset = <2>; 			/* watchdog select of reset source */
++	pu-supply = <&reg_pu>; 			/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&gpu {
++	pu-supply = <&reg_pu>; 			/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&vpu {
++	pu-supply = <&reg_pu>; 			/* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
++};
++
++&hdmi_audio {
++	status = "okay";
++};
++
++&hdmi_core {
++	ipu_id = <0>;
++	disp_id = <0>;
++	status = "okay";
++};
++
++&hdmi_video {
++	fsl,phy_reg_vlev = <0x0294>;
++	fsl,phy_reg_cksymtx = <0x800d>;
++	status = "okay";
++};
++
++&i2c1 {
++	clock-frequency = <100000>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_i2c1_2>;
++	status = "okay";
++
++	ov5640_mipi: ov5640_mipi@3c {
++		compatible = "ovti,ov5640_mipi";
++		reg = <0x3c>;
++		clocks = <&clks 200>;
++		clock-names = "csi_mclk";
++//		DOVDD-supply = <&vgen4_reg>; /* 1.8v */
++//		AVDD-supply = <&vgen3_reg>;  /* 2.8v, rev C board is VGEN3 rev B board is VGEN5 */
++//		DVDD-supply = <&vgen2_reg>;  /* 1.5v*/
++		pwn-gpios = <&gpio3 13 1>;
++		rst-gpios = <&gpio4 10 0>;
++		csi_id = <1>;
++		mclk = <24000000>;
++		mclk_source = <0>;
++	};
++
++};
++
++&i2c2 {
++	clock-frequency = <100000>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_i2c2_2>;
++	status = "okay";
++
++	hdmi: edid@50 {
++		compatible = "fsl,imx6-hdmi-i2c";
++		reg = <0x50>;
++	};
++
++	codec: tlv320aic3x@1b {
++		compatible = "ti,tlv320aic3x";
++		reg = <0x1b>;
++		clocks = <&clks 201>;
++		clock-names = "clko_clk";
++		IOVDD-supply = <&reg_audio>;
++		DVDD-supply = <&reg_audio>;
++		AVDD-supply = <&reg_audio>;
++		DRVDD-supply = <&reg_audio>;
++		gpio-reset = <&gpio1 0 1>;
++		gpio-cfg = <
++			0x0000 /* 0:Default */
++			0x0000 /* 1:Default */
++			0x0013 /* 2:FN_DMICCLK */
++			0x0000 /* 3:Default */
++			0x8014 /* 4:FN_DMICCDAT */
++			0x0000 /* 5:Default */
++		>;
++       	};
++
++	pmic: pfuze100@08 {
++		compatible = "fsl,pfuze100";
++		reg = <0x08>;
++
++		regulators {
++			sw1a_reg: sw1ab {
++				regulator-min-microvolt = <300000>;
++				regulator-max-microvolt = <1875000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <6250>;
++			};
++
++			sw1c_reg: sw1c {
++				regulator-min-microvolt = <300000>;
++				regulator-max-microvolt = <1875000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <6250>;
++			};
++
++			sw2_reg: sw2 {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <3300000>;
++				regulator-boot-on;
++				regulator-always-on;
++			};
++
++			sw3a_reg: sw3a {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <3950000>;
++				regulator-boot-on;
++				regulator-always-on;
++			};
++
++			sw3b_reg: sw3b {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <3950000>;
++				regulator-boot-on;
++				regulator-always-on;
++			};
++
++			sw4_reg: sw4 {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <3950000>;
++			};
++
++			snvs_reg: vsnvs {
++				regulator-min-microvolt = <1200000>;
++				regulator-max-microvolt = <3000000>;
++				regulator-boot-on;
++				regulator-always-on;
++			};
++
++			vref_reg: vrefddr {
++				regulator-boot-on;
++				regulator-always-on;
++			};
++
++			vgen1_reg: vgen1 {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <1550000>;
++			};
++
++			vgen2_reg: vgen2 {
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <1550000>;
++			};
++
++			vgen3_reg: vgen3 {
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3300000>;
++				regulator-always-on;
++				regulator-boot-on;			};
++
++			vgen4_reg: vgen4 {
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3300000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++
++			vgen5_reg: vgen5 {
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3300000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++
++			vgen6_reg: vgen6 {
++				regulator-min-microvolt = <3300000>;
++				regulator-max-microvolt = <3300000>;
++			};
++
++		};
++	};
++};
++
++&i2c3 {
++        clock-frequency = <100000>;
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl_i2c3_3>;
++        status = "okay";
++
++	ctw6120_tsc@38 {
++		compatible = "fsl,ctw6120-tsc";
++//		pinctrl-names = "default";
++//		pinctrl-0 = <&ctw6120_pins>;
++		reg = <0x38>;
++		interrupt-parent = <&gpio3>;
++		interrupts = <7 0>;
++
++		x-size = <800>;
++		y-size = <480>;
++	};
++};
++
++&iomuxc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_hog_1>;
++
++	hog {
++		pinctrl_hog_1: hoggrp-1 {
++			fsl,pins = <
++				 /* User Button */
++				MX6QDL_PAD_CSI0_DATA_EN__GPIO5_IO20 		0x80000000
++				/* Backlight PWM */
++				MX6QDL_PAD_DISP0_DAT9__PWM2_OUT 		0x1b0b1
++				/* Backlight enable */
++				MX6QDL_PAD_DISP0_DAT9__GPIO4_IO30 		0x80000000
++				/* CTW6120 IRQ */
++				MX6QDL_PAD_EIM_DA7__GPIO3_IO07 			0x80000000
++				/* Touch */
++				MX6QDL_PAD_DISP0_DAT3__GPIO4_IO24 		0x80000000		/* touch panel CS */
++				MX6QDL_PAD_DISP0_DAT4__GPIO4_IO25 		0x80000000		/* touch panel irq */
++				/* for Bluetooth/wifi enable */
++				MX6QDL_PAD_SD3_DAT7__GPIO6_IO17			0x100b0			/* wl12xx_wl_irq */
++//				MX6QDL_PAD_SD3_RST__GPIO7_IO08			0x000b0			/* wl12xx_wl_en */
++				MX6QDL_PAD_SD3_DAT6__GPIO6_IO18			0x000b0			/* wl12xx_bt_en */
++				/* SDMMC2 CD/WP */
++				MX6QDL_PAD_KEY_COL4__GPIO4_IO14			0x80000000
++				MX6QDL_PAD_KEY_ROW4__GPIO4_IO15			0x80000000
++				/* USBOTG ID pin */
++//				MX6QDL_PAD_GPIO_4__GPIO1_IO04			0x80000000
++				/* PMIC INT */
++				MX6QDL_PAD_GPIO_17__GPIO7_IO12			0x80000000
++				/* Wifi Slow Clock */
++				MX6QDL_PAD_ENET_RXD0__OSC32K_32K_OUT		0x000b0			/* WIFI Slow clock */
++				/* Audio Clock */
++				MX6QDL_PAD_GPIO_0__CCM_CLKO1 			0x130b0			/* Audio Codec Clock */
++				/* Camera Clock */
++				MX6QDL_PAD_GPIO_3__CCM_CLKO2			0x130b0			/* Camera MCLK */
++			>;
++		};
++		pinctrl_pcie: pciegrp {
++			fsl,pins = <
++				/* PCIE */
++				MX6QDL_PAD_EIM_D21__GPIO3_IO21			0x80000000		/* PCIE_DIS */
++				MX6QDL_PAD_EIM_D22__GPIO3_IO22			0x80000000		/* PCIE_WAKEUP */
++				MX6QDL_PAD_DISP0_DAT19__GPIO5_IO13		0x80000000	 	/* PCIE_RST */
++				MX6QDL_PAD_SD4_DAT4__GPIO2_IO12			0x80000000		/* PCIE_PWR_ENA */ 
++			>;
++		};
++		pinctrl_usbotg_var: usbotggrp-3 {
++			fsl,pins = <
++				MX6QDL_PAD_GPIO_4__GPIO1_IO04 0x17059
++			>;
++		};
++	};
++};
++
++&ldb {
++	ipu_id = <1>;
++	disp_id = <0>;
++	ext_ref = <1>;
++	mode = "sep0";
++	sec_ipu_id = <1>;
++	sec_disp_id = <1>;
++	status = "okay";
++};
++
++&mipi_csi {
++	status = "okay";
++	ipu_id = <0>;
++	csi_id = <0>;
++	v_channel = <0>;
++	lanes = <2>;
++};
++
++&pcie {
++	pinctrl-0 = <&pinctrl_pcie>;
++	power-on-gpio = <&gpio2 12 0>;		/* gpio pin number of power-enable signal */
++	reset-gpio    = <&gpio5 13 0>;		/* gpio pin number of power good signal */
++	wake-up-gpio  = <&gpio3 22 1>;		/* gpio pin number of incoming wakeup signal */
++ 	disable-gpio  = <&gpio3 21 0>;		/* gpio pin number of outgoing rfkill/endpoint disable signal */
++	status = "okay";
++};
++
++
++#if 0
++&pwm1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_pwm1_1>;
++	status = "okay";
++};
++#endif
++
++
++&ssi2 {
++	fsl,mode = "i2s-slave";
++	status = "okay";
++};
++
++/* Console Uart */
++&uart1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_uart1_1>;
++	status = "okay";
++};
++
++/* Bluetooth Uart */
++&uart2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_uart2_3>;
++	fsl,uart-has-rtscts;
++	status = "okay";
++};
++
++/* ttymxc2 UART */
++&uart3 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_uart3_2>;
++	fsl,uart-has-rtscts;
++	status = "okay";
++};
++
++&flexcan1 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_flexcan1_3>;
++	status = "okay";
++};
++
++&gpmi {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_gpmi_nand_v1>;
++	status = "okay";
++
++	partition@0 {
++		label = "bootloader";
++		reg = <0x00000000 0x001e0000>;
++	};
++
++	partition@1 {
++		label = "dtb";
++		reg = <0x001e0000 0x00020000>;
++	};
++
++	partition@2 {
++		label = "kernel";
++		reg = <0x00200000 0x00600000>;
++	};
++
++	partition@3 {
++		label = "rootfs";
++		reg = <0x00800000 0x1f800000>;
++	};
++
++};
++
++&usbh1 {
++	vbus-supply = <&reg_usb_h1_vbus>;
++	status = "okay";
++};
++
++
++&usbotg {
++	vbus-supply = <&reg_usb_otg_vbus>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_usbotg_var>;
++	disable-over-current;
++	status = "okay";
++};
++
++&usdhc2 {	/* uSDHC2, MMC/SD card */
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_usdhc2_2>;
++	cd-gpios = <&gpio4 14 0>;
++	wp-gpios = <&gpio4 15 0>;
++	no-1-8-v;
++	keep-power-in-suspend;
++	enable-sdio-wakeup;
++	status = "okay";
++};
++
++&usdhc3 {	/* uSDHC3, TiWi wl1271 */
++	pinctrl-names = "default"; //, "state_100mhz", "state_200mhz";
++	pinctrl-0 = <&pinctrl_usdhc3_2>;
++	keep-power-in-suspend;
++	enable-sdio-wakeup;
++	vqmmc-supply = <&wlan_en_reg>;
++	non-removable;
++	cap-power-off-card;
++	max-frequency = <24000000>;
++	status = "okay";
++};
++
+diff --git a/arch/arm/boot/dts/imx6qdl.dtsi b/arch/arm/boot/dts/imx6qdl.dtsi
+index 2cb5ae0..5be5272 100644
+--- a/arch/arm/boot/dts/imx6qdl.dtsi
++++ b/arch/arm/boot/dts/imx6qdl.dtsi
+@@ -1168,6 +1168,27 @@
+ 				MX6QDL_PAD_ENET_TX_EN__ENET_TX_EN     0x1b0b0
+ 			>;
+ 		};
++
++		pinctrl_enet_4: enetgrp-4 {
++			fsl,pins = <
++				MX6QDL_PAD_ENET_MDIO__ENET_MDIO       0x1b0b0
++				MX6QDL_PAD_ENET_MDC__ENET_MDC         0x1b0b0
++				MX6QDL_PAD_RGMII_TXC__RGMII_TXC       0x1b0b0
++				MX6QDL_PAD_RGMII_TD0__RGMII_TD0       0x1b0b0
++				MX6QDL_PAD_RGMII_TD1__RGMII_TD1       0x1b0b0
++				MX6QDL_PAD_RGMII_TD2__RGMII_TD2       0x1b0b0
++				MX6QDL_PAD_RGMII_TD3__RGMII_TD3       0x1b0b0
++				MX6QDL_PAD_RGMII_TX_CTL__RGMII_TX_CTL 0x1b0b0
++				MX6QDL_PAD_ENET_REF_CLK__ENET_TX_CLK  0x1b0b0
++				MX6QDL_PAD_RGMII_RXC__RGMII_RXC       0x1b0b0
++				MX6QDL_PAD_RGMII_RD0__RGMII_RD0       0x1b0b0
++				MX6QDL_PAD_RGMII_RD1__RGMII_RD1       0x1b0b0
++				MX6QDL_PAD_RGMII_RD2__RGMII_RD2       0x1b0b0
++				MX6QDL_PAD_RGMII_RD3__RGMII_RD3       0x1b0b0
++				MX6QDL_PAD_RGMII_RX_CTL__RGMII_RX_CTL 0x1b0b0
++			>;
++		};
++
+ 	};
+ 
+ 	esai {
+@@ -1215,6 +1236,12 @@
+ 				MX6QDL_PAD_KEY_ROW2__FLEXCAN1_RX 0x80000000
+ 			>;
+ 		};
++		pinctrl_flexcan1_3: flexcan1grp-3 {
++			fsl,pins = <
++				MX6QDL_PAD_GPIO_7__FLEXCAN1_TX   0x80000000
++				MX6QDL_PAD_GPIO_8__FLEXCAN1_RX   0x80000000
++			>;
++		};
+ 	};
+ 
+ 	flexcan2 {
+@@ -1250,6 +1277,31 @@
+ 		};
+ 	};
+ 
++	gpmi-nand {
++		pinctrl_gpmi_nand_v1: gpmi-nand-1 {
++			fsl,pins = <
++				MX6QDL_PAD_NANDF_CLE__NAND_CLE		0xb0b1
++				MX6QDL_PAD_NANDF_ALE__NAND_ALE		0xb0b1
++				MX6QDL_PAD_NANDF_CS0__NAND_CE0_B	0xb0b1
++				MX6QDL_PAD_NANDF_CS1__NAND_CE1_B	0xb0b1
++				MX6QDL_PAD_NANDF_RB0__NAND_READY_B	0xb0b1
++
++				MX6QDL_PAD_NANDF_D0__NAND_DATA00	0xb0b1
++				MX6QDL_PAD_NANDF_D1__NAND_DATA01	0xb0b1
++				MX6QDL_PAD_NANDF_D2__NAND_DATA02	0xb0b1
++				MX6QDL_PAD_NANDF_D3__NAND_DATA03	0xb0b1
++				MX6QDL_PAD_NANDF_D4__NAND_DATA04	0xb0b1
++				MX6QDL_PAD_NANDF_D5__NAND_DATA05	0xb0b1
++				MX6QDL_PAD_NANDF_D6__NAND_DATA06	0xb0b1
++				MX6QDL_PAD_NANDF_D7__NAND_DATA07	0xb0b1
++				MX6QDL_PAD_SD4_CMD__NAND_RE_B		0xb0b1
++				MX6QDL_PAD_SD4_CLK__NAND_WE_B		0xb0b1
++				MX6QDL_PAD_NANDF_WP_B__NAND_WP_B	0xb0b1
++			>;
++		};
++	};
++
++
+ 	hdmi_hdcp {
+ 		pinctrl_hdmi_hdcp_1: hdmihdcpgrp-1 {
+ 			fsl,pins = <
+@@ -1270,8 +1322,7 @@
+ 				MX6QDL_PAD_EIM_EB2__HDMI_TX_DDC_SCL  0x4001b8b1
+ 				MX6QDL_PAD_KEY_ROW3__HDMI_TX_DDC_SDA 0x4001b8b1
+ 			>;
+-		};
+-	};
++		};	};
+ 
+ 	hdmi_cec {
+ 		pinctrl_hdmi_cec_1: hdmicecgrp-1 {
+@@ -1454,6 +1505,7 @@
+ 	pwm1 {
+ 		pinctrl_pwm1_1: pwm1grp-1 {
+ 			fsl,pins = <
++				MX6QDL_PAD_DISP0_DAT9__PWM2_OUT 0x1b0b1
+ 				MX6QDL_PAD_SD1_DAT3__PWM1_OUT 0x1b0b1
+ 			>;
+ 		};
+@@ -1507,8 +1559,17 @@
+ 				MX6QDL_PAD_EIM_D29__UART2_DTE_RTS_B 0x1b0b1
+ 			>;
+ 		};
++		pinctrl_uart2_3: uart2grp-3 { /* RTS/CTS only mode */
++			fsl,pins = <
++				MX6QDL_PAD_SD3_DAT4__UART2_RX_DATA  0x1b0b1
++				MX6QDL_PAD_SD3_DAT5__UART2_TX_DATA  0x1b0b1
++				MX6QDL_PAD_EIM_D28__UART2_CTS_B	    0x1b0b1
++				MX6QDL_PAD_EIM_D29__UART2_RTS_B	    0x1b0b1
++			>;
++		};
+ 	};
+ 
++
+ 	uart3 {
+ 		pinctrl_uart3_1: uart3grp-1 {
+ 			fsl,pins = <
+@@ -1518,6 +1579,15 @@
+ 				MX6QDL_PAD_EIM_EB3__UART3_RTS_B   0x1b0b1
+ 			>;
+ 		};
++		/* Variscite Uart2 support */
++		pinctrl_uart3_2: uart3grp-2 {	/* RX/TX RTS/CTS */
++			fsl,pins = <
++				MX6QDL_PAD_EIM_D25__UART3_RX_DATA 0x1b0b1
++				MX6QDL_PAD_EIM_D24__UART3_TX_DATA 0x1b0b1
++				MX6QDL_PAD_EIM_D23__UART3_CTS_B   0x1b0b1
++				MX6QDL_PAD_EIM_EB3__UART3_RTS_B   0x1b0b1
++			>;
++		};
+ 	};
+ 
+ 	uart4 {
+diff --git a/arch/arm/boot/dts/imx6sl-var-som.dts b/arch/arm/boot/dts/imx6sl-var-som.dts
+new file mode 100644
+index 0000000..b1203d2
+--- /dev/null
++++ b/arch/arm/boot/dts/imx6sl-var-som.dts
+@@ -0,0 +1,145 @@
++/*
++ * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
++ * Donio Ron: ron.d@variscite.com
++ * 
++ * Copyright (C) 2013 Freescale Semiconductor, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++/dts-v1/;
++
++#include "imx6dl.dtsi"
++#include "imx6qdl-var-som.dtsi"
++
++/ {
++	model = "Freescale i.MX6 DualLite Variscite System On A Module";
++	compatible = "fsl,imx6dl-var-som", "fsl,imx6dl";
++};
++
++#if 0
++&battery {
++	offset-charger = <1485>;
++	offset-discharger = <1464>;
++	offset-usb-charger = <1285>;
++};
++
++&i2c3 {
++	max17135@48 {
++		compatible = "maxim,max17135";
++		reg = <0x48>;
++		vneg_pwrup = <1>;
++		gvee_pwrup = <1>;
++		vpos_pwrup = <2>;
++		gvdd_pwrup = <1>;
++		gvdd_pwrdn = <1>;
++		vpos_pwrdn = <2>;
++		gvee_pwrdn = <1>;
++		vneg_pwrdn = <1>;
++		SENSOR-supply = <&reg_sensor>;
++		gpio_pmic_pwrgood = <&gpio2 21 0>;
++		gpio_pmic_vcom_ctrl = <&gpio3 17 0>;
++		gpio_pmic_wakeup = <&gpio3 20 0>;
++		gpio_pmic_v3p3 = <&gpio2 20 0>;
++		gpio_pmic_intr = <&gpio2 25 0>;
++
++		regulators {
++			DISPLAY_reg: DISPLAY {
++				regulator-name = "DISPLAY";
++			};
++
++			GVDD_reg: GVDD {
++				/* 20v */
++				regulator-name = "GVDD";
++			};
++
++			GVEE_reg: GVEE {
++				/* -22v */
++				regulator-name = "GVEE";
++			};
++
++			HVINN_reg: HVINN {
++				/* -22v */
++				regulator-name = "HVINN";
++			};
++
++			HVINP_reg: HVINP {
++				/* 20v */
++				regulator-name = "HVINP";
++			};
++
++			VCOM_reg: VCOM {
++				regulator-name = "VCOM";
++				/* 2's-compliment, -4325000 */
++				regulator-min-microvolt = <0xffbe0178>;
++				/* 2's-compliment, -500000 */
++				regulator-max-microvolt = <0xfff85ee0>;
++			};
++
++			VNEG_reg: VNEG {
++				/* -15v */
++				regulator-name = "VNEG";
++			};
++
++			VPOS_reg: VPOS {
++				/* 15v */
++				regulator-name = "VPOS";
++			};
++
++			V3P3_reg: V3P3 {
++				regulator-name = "V3P3";
++			};
++		};
++	};
++};
++
++&iomuxc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_hog_1>, <&pinctrl_hog_2>;
++
++	hog {
++		pinctrl_hog_2: hoggrp-2 {
++			fsl,pins = <
++				/* MAX17135 */
++				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x80000000
++				MX6QDL_PAD_EIM_D17__GPIO3_IO17 0x80000000
++				MX6QDL_PAD_EIM_D20__GPIO3_IO20 0x80000000
++				MX6QDL_PAD_EIM_A18__GPIO2_IO20 0x80000000
++				MX6QDL_PAD_EIM_OE__GPIO2_IO25 0x80000000
++				/* elan touch */
++				MX6QDL_PAD_EIM_A20__GPIO2_IO18 0x80000000
++				MX6QDL_PAD_EIM_DA8__GPIO3_IO08 0x80000000
++				MX6QDL_PAD_EIM_D28__GPIO3_IO28 0x170b0
++			>;
++		};
++	};
++};
++
++&epdc {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_epdc_0>;
++	V3P3-supply = <&V3P3_reg>;
++	VCOM-supply = <&VCOM_reg>;
++	DISPLAY-supply = <&DISPLAY_reg>;
++	status = "okay";
++};
++#endif
++
++&ldb {
++	ipu_id = <0>;
++	sec_ipu_id = <0>;
++};
++
++&mxcfb1 {
++	status = "okay";
++};
++
++&mxcfb2 {
++	status = "okay";
++};
++
++&pxp {
++	status = "okay";
++};
+diff --git a/arch/arm/configs/imx_v7_var_defconfig b/arch/arm/configs/imx_v7_var_defconfig
+new file mode 100644
+index 0000000..7452102
+--- /dev/null
++++ b/arch/arm/configs/imx_v7_var_defconfig
+@@ -0,0 +1,3752 @@
++#
++# Automatically generated file; DO NOT EDIT.
++# Linux/arm 3.10.17 Kernel Configuration
++#
++CONFIG_ARM=y
++CONFIG_MIGHT_HAVE_PCI=y
++CONFIG_SYS_SUPPORTS_APM_EMULATION=y
++CONFIG_HAVE_PROC_CPU=y
++CONFIG_STACKTRACE_SUPPORT=y
++CONFIG_LOCKDEP_SUPPORT=y
++CONFIG_TRACE_IRQFLAGS_SUPPORT=y
++CONFIG_RWSEM_GENERIC_SPINLOCK=y
++CONFIG_ARCH_HAS_CPUFREQ=y
++CONFIG_GENERIC_HWEIGHT=y
++CONFIG_GENERIC_CALIBRATE_DELAY=y
++CONFIG_ZONE_DMA=y
++CONFIG_NEED_DMA_MAP_STATE=y
++CONFIG_FIQ=y
++CONFIG_VECTORS_BASE=0xffff0000
++CONFIG_ARM_PATCH_PHYS_VIRT=y
++CONFIG_GENERIC_BUG=y
++CONFIG_DEFCONFIG_LIST="/lib/modules/$UNAME_RELEASE/.config"
++CONFIG_IRQ_WORK=y
++CONFIG_BUILDTIME_EXTABLE_SORT=y
++
++#
++# General setup
++#
++CONFIG_INIT_ENV_ARG_LIMIT=32
++CONFIG_CROSS_COMPILE=""
++CONFIG_LOCALVERSION=""
++CONFIG_LOCALVERSION_AUTO=y
++CONFIG_HAVE_KERNEL_GZIP=y
++CONFIG_HAVE_KERNEL_LZMA=y
++CONFIG_HAVE_KERNEL_XZ=y
++CONFIG_HAVE_KERNEL_LZO=y
++# CONFIG_KERNEL_GZIP is not set
++# CONFIG_KERNEL_LZMA is not set
++# CONFIG_KERNEL_XZ is not set
++CONFIG_KERNEL_LZO=y
++CONFIG_DEFAULT_HOSTNAME="(none)"
++CONFIG_SWAP=y
++CONFIG_SYSVIPC=y
++CONFIG_SYSVIPC_SYSCTL=y
++# CONFIG_POSIX_MQUEUE is not set
++# CONFIG_FHANDLE is not set
++# CONFIG_AUDIT is not set
++CONFIG_HAVE_GENERIC_HARDIRQS=y
++
++#
++# IRQ subsystem
++#
++CONFIG_GENERIC_HARDIRQS=y
++CONFIG_GENERIC_IRQ_PROBE=y
++CONFIG_GENERIC_IRQ_SHOW=y
++CONFIG_HARDIRQS_SW_RESEND=y
++CONFIG_GENERIC_IRQ_CHIP=y
++CONFIG_IRQ_DOMAIN=y
++# CONFIG_IRQ_DOMAIN_DEBUG is not set
++CONFIG_SPARSE_IRQ=y
++CONFIG_KTIME_SCALAR=y
++CONFIG_GENERIC_CLOCKEVENTS=y
++CONFIG_GENERIC_CLOCKEVENTS_BUILD=y
++CONFIG_ARCH_HAS_TICK_BROADCAST=y
++CONFIG_GENERIC_CLOCKEVENTS_BROADCAST=y
++
++#
++# Timers subsystem
++#
++CONFIG_TICK_ONESHOT=y
++CONFIG_NO_HZ_COMMON=y
++# CONFIG_HZ_PERIODIC is not set
++CONFIG_NO_HZ_IDLE=y
++CONFIG_NO_HZ=y
++CONFIG_HIGH_RES_TIMERS=y
++
++#
++# CPU/Task time and stats accounting
++#
++CONFIG_TICK_CPU_ACCOUNTING=y
++# CONFIG_IRQ_TIME_ACCOUNTING is not set
++# CONFIG_BSD_PROCESS_ACCT is not set
++# CONFIG_TASKSTATS is not set
++
++#
++# RCU Subsystem
++#
++CONFIG_TREE_RCU=y
++# CONFIG_PREEMPT_RCU is not set
++CONFIG_RCU_STALL_COMMON=y
++# CONFIG_RCU_USER_QS is not set
++CONFIG_RCU_FANOUT=32
++CONFIG_RCU_FANOUT_LEAF=16
++# CONFIG_RCU_FANOUT_EXACT is not set
++# CONFIG_RCU_FAST_NO_HZ is not set
++# CONFIG_TREE_RCU_TRACE is not set
++# CONFIG_RCU_NOCB_CPU is not set
++CONFIG_IKCONFIG=y
++CONFIG_IKCONFIG_PROC=y
++CONFIG_LOG_BUF_SHIFT=18
++CONFIG_CGROUPS=y
++# CONFIG_CGROUP_DEBUG is not set
++# CONFIG_CGROUP_FREEZER is not set
++# CONFIG_CGROUP_DEVICE is not set
++# CONFIG_CPUSETS is not set
++# CONFIG_CGROUP_CPUACCT is not set
++# CONFIG_RESOURCE_COUNTERS is not set
++# CONFIG_CGROUP_PERF is not set
++# CONFIG_CGROUP_SCHED is not set
++# CONFIG_BLK_CGROUP is not set
++# CONFIG_CHECKPOINT_RESTORE is not set
++# CONFIG_NAMESPACES is not set
++CONFIG_UIDGID_CONVERTED=y
++# CONFIG_UIDGID_STRICT_TYPE_CHECKS is not set
++# CONFIG_SCHED_AUTOGROUP is not set
++# CONFIG_SYSFS_DEPRECATED is not set
++CONFIG_RELAY=y
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_INITRAMFS_SOURCE=""
++CONFIG_RD_GZIP=y
++# CONFIG_RD_BZIP2 is not set
++# CONFIG_RD_LZMA is not set
++# CONFIG_RD_XZ is not set
++# CONFIG_RD_LZO is not set
++# CONFIG_CC_OPTIMIZE_FOR_SIZE is not set
++CONFIG_SYSCTL=y
++CONFIG_ANON_INODES=y
++CONFIG_HAVE_UID16=y
++CONFIG_HOTPLUG=y
++CONFIG_EXPERT=y
++CONFIG_UID16=y
++# CONFIG_SYSCTL_SYSCALL is not set
++CONFIG_KALLSYMS=y
++# CONFIG_KALLSYMS_ALL is not set
++CONFIG_PRINTK=y
++CONFIG_BUG=y
++CONFIG_ELF_CORE=y
++CONFIG_BASE_FULL=y
++CONFIG_FUTEX=y
++CONFIG_EPOLL=y
++CONFIG_SIGNALFD=y
++CONFIG_TIMERFD=y
++CONFIG_EVENTFD=y
++CONFIG_SHMEM=y
++CONFIG_AIO=y
++CONFIG_PCI_QUIRKS=y
++# CONFIG_EMBEDDED is not set
++CONFIG_HAVE_PERF_EVENTS=y
++CONFIG_PERF_USE_VMALLOC=y
++
++#
++# Kernel Performance Events And Counters
++#
++CONFIG_PERF_EVENTS=y
++# CONFIG_DEBUG_PERF_USE_VMALLOC is not set
++CONFIG_VM_EVENT_COUNTERS=y
++# CONFIG_SLUB_DEBUG is not set
++# CONFIG_COMPAT_BRK is not set
++# CONFIG_SLAB is not set
++CONFIG_SLUB=y
++# CONFIG_SLOB is not set
++# CONFIG_PROFILING is not set
++CONFIG_HAVE_OPROFILE=y
++# CONFIG_KPROBES is not set
++# CONFIG_JUMP_LABEL is not set
++# CONFIG_HAVE_64BIT_ALIGNED_ACCESS is not set
++CONFIG_HAVE_KPROBES=y
++CONFIG_HAVE_KRETPROBES=y
++CONFIG_HAVE_ARCH_TRACEHOOK=y
++CONFIG_HAVE_DMA_ATTRS=y
++CONFIG_HAVE_DMA_CONTIGUOUS=y
++CONFIG_USE_GENERIC_SMP_HELPERS=y
++CONFIG_GENERIC_SMP_IDLE_THREAD=y
++CONFIG_GENERIC_IDLE_POLL_SETUP=y
++CONFIG_HAVE_REGS_AND_STACK_ACCESS_API=y
++CONFIG_HAVE_CLK=y
++CONFIG_HAVE_DMA_API_DEBUG=y
++CONFIG_HAVE_HW_BREAKPOINT=y
++CONFIG_HAVE_ARCH_JUMP_LABEL=y
++CONFIG_ARCH_WANT_IPC_PARSE_VERSION=y
++CONFIG_HAVE_ARCH_SECCOMP_FILTER=y
++CONFIG_HAVE_CONTEXT_TRACKING=y
++CONFIG_HAVE_IRQ_TIME_ACCOUNTING=y
++CONFIG_HAVE_MOD_ARCH_SPECIFIC=y
++CONFIG_MODULES_USE_ELF_REL=y
++CONFIG_CLONE_BACKWARDS=y
++CONFIG_OLD_SIGSUSPEND3=y
++CONFIG_OLD_SIGACTION=y
++
++#
++# GCOV-based kernel profiling
++#
++# CONFIG_GCOV_KERNEL is not set
++CONFIG_HAVE_GENERIC_DMA_COHERENT=y
++CONFIG_RT_MUTEXES=y
++CONFIG_BASE_SMALL=0
++CONFIG_MODULES=y
++# CONFIG_MODULE_FORCE_LOAD is not set
++CONFIG_MODULE_UNLOAD=y
++# CONFIG_MODULE_FORCE_UNLOAD is not set
++CONFIG_MODVERSIONS=y
++CONFIG_MODULE_SRCVERSION_ALL=y
++# CONFIG_MODULE_SIG is not set
++CONFIG_STOP_MACHINE=y
++CONFIG_BLOCK=y
++CONFIG_LBDAF=y
++# CONFIG_BLK_DEV_BSG is not set
++# CONFIG_BLK_DEV_BSGLIB is not set
++# CONFIG_BLK_DEV_INTEGRITY is not set
++
++#
++# Partition Types
++#
++# CONFIG_PARTITION_ADVANCED is not set
++CONFIG_MSDOS_PARTITION=y
++CONFIG_EFI_PARTITION=y
++
++#
++# IO Schedulers
++#
++CONFIG_IOSCHED_NOOP=y
++CONFIG_IOSCHED_DEADLINE=y
++CONFIG_IOSCHED_CFQ=y
++# CONFIG_DEFAULT_DEADLINE is not set
++CONFIG_DEFAULT_CFQ=y
++# CONFIG_DEFAULT_NOOP is not set
++CONFIG_DEFAULT_IOSCHED="cfq"
++CONFIG_INLINE_SPIN_UNLOCK_IRQ=y
++CONFIG_INLINE_READ_UNLOCK=y
++CONFIG_INLINE_READ_UNLOCK_IRQ=y
++CONFIG_INLINE_WRITE_UNLOCK=y
++CONFIG_INLINE_WRITE_UNLOCK_IRQ=y
++CONFIG_MUTEX_SPIN_ON_OWNER=y
++CONFIG_FREEZER=y
++
++#
++# System Type
++#
++CONFIG_MMU=y
++CONFIG_ARCH_MULTIPLATFORM=y
++# CONFIG_ARCH_INTEGRATOR is not set
++# CONFIG_ARCH_REALVIEW is not set
++# CONFIG_ARCH_VERSATILE is not set
++# CONFIG_ARCH_AT91 is not set
++# CONFIG_ARCH_CLPS711X is not set
++# CONFIG_ARCH_GEMINI is not set
++# CONFIG_ARCH_EBSA110 is not set
++# CONFIG_ARCH_EP93XX is not set
++# CONFIG_ARCH_FOOTBRIDGE is not set
++# CONFIG_ARCH_NETX is not set
++# CONFIG_ARCH_IOP13XX is not set
++# CONFIG_ARCH_IOP32X is not set
++# CONFIG_ARCH_IOP33X is not set
++# CONFIG_ARCH_IXP4XX is not set
++# CONFIG_ARCH_DOVE is not set
++# CONFIG_ARCH_KIRKWOOD is not set
++# CONFIG_ARCH_MV78XX0 is not set
++# CONFIG_ARCH_ORION5X is not set
++# CONFIG_ARCH_MMP is not set
++# CONFIG_ARCH_KS8695 is not set
++# CONFIG_ARCH_W90X900 is not set
++# CONFIG_ARCH_LPC32XX is not set
++# CONFIG_ARCH_PXA is not set
++# CONFIG_ARCH_MSM is not set
++# CONFIG_ARCH_SHMOBILE is not set
++# CONFIG_ARCH_RPC is not set
++# CONFIG_ARCH_SA1100 is not set
++# CONFIG_ARCH_S3C24XX is not set
++# CONFIG_ARCH_S3C64XX is not set
++# CONFIG_ARCH_S5P64X0 is not set
++# CONFIG_ARCH_S5PC100 is not set
++# CONFIG_ARCH_S5PV210 is not set
++# CONFIG_ARCH_EXYNOS is not set
++# CONFIG_ARCH_SHARK is not set
++# CONFIG_ARCH_U300 is not set
++# CONFIG_ARCH_DAVINCI is not set
++# CONFIG_ARCH_OMAP1 is not set
++
++#
++# Multiple platform selection
++#
++
++#
++# CPU Core family selection
++#
++# CONFIG_ARCH_MULTI_V6 is not set
++CONFIG_ARCH_MULTI_V7=y
++CONFIG_ARCH_MULTI_V6_V7=y
++# CONFIG_ARCH_MULTI_CPU_AUTO is not set
++# CONFIG_ARCH_MVEBU is not set
++# CONFIG_ARCH_BCM is not set
++CONFIG_GPIO_PCA953X=y
++# CONFIG_KEYBOARD_GPIO_POLLED is not set
++# CONFIG_ARCH_HIGHBANK is not set
++CONFIG_ARCH_MXC=y
++
++#
++# Freescale i.MX support
++#
++# CONFIG_MXC_IRQ_PRIOR is not set
++CONFIG_MXC_TZIC=y
++CONFIG_MXC_DEBUG_BOARD=y
++CONFIG_HAVE_IMX_RNG=y
++CONFIG_HAVE_IMX_ANATOP=y
++CONFIG_HAVE_IMX_GPC=y
++CONFIG_HAVE_IMX_MMDC=y
++CONFIG_HAVE_IMX_SRC=y
++CONFIG_ARCH_MXC_IOMUX_V3=y
++CONFIG_SOC_IMX5=y
++CONFIG_SOC_IMX51=y
++
++#
++# i.MX51 machines:
++#
++CONFIG_MACH_IMX51_DT=y
++# CONFIG_MACH_MX51_BABBAGE is not set
++CONFIG_MACH_EUKREA_CPUIMX51SD=y
++CONFIG_MACH_EUKREA_MBIMXSD51_BASEBOARD=y
++
++#
++# Device tree only
++#
++CONFIG_SOC_IMX53=y
++CONFIG_SOC_IMX6Q=y
++CONFIG_SOC_IMX6SL=y
++CONFIG_SOC_VF610=y
++CONFIG_IMX_HAVE_PLATFORM_FEC=y
++CONFIG_IMX_HAVE_PLATFORM_FSL_USB2_UDC=y
++CONFIG_IMX_HAVE_PLATFORM_GPIO_KEYS=y
++CONFIG_IMX_HAVE_PLATFORM_IMX2_WDT=y
++CONFIG_IMX_HAVE_PLATFORM_IMX_I2C=y
++CONFIG_IMX_HAVE_PLATFORM_IMX_SSI=y
++CONFIG_IMX_HAVE_PLATFORM_IMX_UART=y
++CONFIG_IMX_HAVE_PLATFORM_MXC_EHCI=y
++CONFIG_IMX_HAVE_PLATFORM_MXC_NAND=y
++CONFIG_IMX_HAVE_PLATFORM_SDHCI_ESDHC_IMX=y
++CONFIG_IMX_HAVE_PLATFORM_SPI_IMX=y
++# CONFIG_ARCH_OMAP2PLUS is not set
++# CONFIG_ARCH_SOCFPGA is not set
++# CONFIG_PLAT_SPEAR is not set
++# CONFIG_ARCH_SUNXI is not set
++# CONFIG_ARCH_SIRF is not set
++# CONFIG_ARCH_TEGRA is not set
++# CONFIG_ARCH_U8500 is not set
++# CONFIG_ARCH_VEXPRESS is not set
++# CONFIG_ARCH_VIRT is not set
++# CONFIG_ARCH_WM8850 is not set
++# CONFIG_ARCH_ZYNQ is not set
++
++#
++# Processor Type
++#
++CONFIG_CPU_V7=y
++CONFIG_CPU_32v6K=y
++CONFIG_CPU_32v7=y
++CONFIG_CPU_ABRT_EV7=y
++CONFIG_CPU_PABRT_V7=y
++CONFIG_CPU_CACHE_V7=y
++CONFIG_CPU_CACHE_VIPT=y
++CONFIG_CPU_COPY_V6=y
++CONFIG_CPU_TLB_V7=y
++CONFIG_CPU_HAS_ASID=y
++CONFIG_CPU_CP15=y
++CONFIG_CPU_CP15_MMU=y
++
++#
++# Processor Features
++#
++# CONFIG_ARM_LPAE is not set
++# CONFIG_ARCH_PHYS_ADDR_T_64BIT is not set
++CONFIG_ARM_THUMB=y
++# CONFIG_ARM_THUMBEE is not set
++CONFIG_ARM_VIRT_EXT=y
++# CONFIG_SWP_EMULATE is not set
++# CONFIG_CPU_ICACHE_DISABLE is not set
++# CONFIG_CPU_DCACHE_DISABLE is not set
++# CONFIG_CPU_BPREDICT_DISABLE is not set
++CONFIG_KUSER_HELPERS=y
++CONFIG_OUTER_CACHE=y
++CONFIG_OUTER_CACHE_SYNC=y
++CONFIG_MIGHT_HAVE_CACHE_L2X0=y
++CONFIG_CACHE_L2X0=y
++CONFIG_CACHE_PL310=y
++CONFIG_ARM_L1_CACHE_SHIFT_6=y
++CONFIG_ARM_L1_CACHE_SHIFT=6
++CONFIG_ARM_DMA_MEM_BUFFERABLE=y
++CONFIG_ARM_NR_BANKS=8
++CONFIG_MULTI_IRQ_HANDLER=y
++# CONFIG_ARM_ERRATA_430973 is not set
++CONFIG_PL310_ERRATA_588369=y
++# CONFIG_ARM_ERRATA_643719 is not set
++# CONFIG_ARM_ERRATA_720789 is not set
++CONFIG_PL310_ERRATA_727915=y
++CONFIG_ARM_ERRATA_794072=y
++CONFIG_ARM_ERRATA_761320=y
++# CONFIG_PL310_ERRATA_753970 is not set
++CONFIG_ARM_ERRATA_754322=y
++# CONFIG_ARM_ERRATA_754327 is not set
++CONFIG_ARM_ERRATA_764369=y
++CONFIG_PL310_ERRATA_769419=y
++CONFIG_ARM_ERRATA_775420=y
++# CONFIG_ARM_ERRATA_798181 is not set
++
++#
++# Bus support
++#
++CONFIG_PCI=y
++CONFIG_PCI_DOMAINS=y
++CONFIG_PCI_SYSCALL=y
++CONFIG_ARCH_SUPPORTS_MSI=y
++CONFIG_PCI_MSI=y
++# CONFIG_PCI_DEBUG is not set
++# CONFIG_PCI_REALLOC_ENABLE_AUTO is not set
++# CONFIG_PCI_STUB is not set
++# CONFIG_PCI_IOV is not set
++# CONFIG_PCI_PRI is not set
++# CONFIG_PCI_PASID is not set
++
++#
++# PCI host controller drivers
++#
++CONFIG_PCIE_DW=y
++CONFIG_PCI_IMX6=y
++# CONFIG_EP_MODE_IN_EP_RC_SYS is not set
++# CONFIG_RC_MODE_IN_EP_RC_SYS is not set
++# CONFIG_PCCARD is not set
++
++#
++# Kernel Features
++#
++CONFIG_HAVE_SMP=y
++CONFIG_SMP=y
++CONFIG_SMP_ON_UP=y
++CONFIG_ARM_CPU_TOPOLOGY=y
++# CONFIG_SCHED_MC is not set
++# CONFIG_SCHED_SMT is not set
++CONFIG_HAVE_ARM_SCU=y
++# CONFIG_HAVE_ARM_ARCH_TIMER is not set
++CONFIG_HAVE_ARM_TWD=y
++# CONFIG_MCPM is not set
++# CONFIG_VMSPLIT_3G is not set
++CONFIG_VMSPLIT_2G=y
++# CONFIG_VMSPLIT_1G is not set
++CONFIG_PAGE_OFFSET=0x80000000
++CONFIG_NR_CPUS=4
++CONFIG_HOTPLUG_CPU=y
++# CONFIG_ARM_PSCI is not set
++CONFIG_LOCAL_TIMERS=y
++CONFIG_ARCH_NR_GPIO=0
++# CONFIG_PREEMPT_NONE is not set
++CONFIG_PREEMPT_VOLUNTARY=y
++# CONFIG_PREEMPT is not set
++CONFIG_HZ=100
++CONFIG_SCHED_HRTICK=y
++# CONFIG_THUMB2_KERNEL is not set
++CONFIG_AEABI=y
++# CONFIG_OABI_COMPAT is not set
++# CONFIG_ARCH_SPARSEMEM_DEFAULT is not set
++# CONFIG_ARCH_SELECT_MEMORY_MODEL is not set
++CONFIG_HAVE_ARCH_PFN_VALID=y
++# CONFIG_HIGHMEM is not set
++CONFIG_HW_PERF_EVENTS=y
++CONFIG_FLATMEM=y
++CONFIG_FLAT_NODE_MEM_MAP=y
++CONFIG_HAVE_MEMBLOCK=y
++CONFIG_MEMORY_ISOLATION=y
++# CONFIG_HAVE_BOOTMEM_INFO_NODE is not set
++CONFIG_PAGEFLAGS_EXTENDED=y
++CONFIG_SPLIT_PTLOCK_CPUS=4
++CONFIG_COMPACTION=y
++CONFIG_MIGRATION=y
++# CONFIG_PHYS_ADDR_T_64BIT is not set
++CONFIG_ZONE_DMA_FLAG=1
++CONFIG_BOUNCE=y
++# CONFIG_KSM is not set
++CONFIG_DEFAULT_MMAP_MIN_ADDR=4096
++CONFIG_CROSS_MEMORY_ATTACH=y
++# CONFIG_CLEANCACHE is not set
++# CONFIG_FRONTSWAP is not set
++CONFIG_FORCE_MAX_ZONEORDER=14
++CONFIG_ALIGNMENT_TRAP=y
++# CONFIG_UACCESS_WITH_MEMCPY is not set
++# CONFIG_SECCOMP is not set
++# CONFIG_CC_STACKPROTECTOR is not set
++# CONFIG_XEN is not set
++
++#
++# Boot options
++#
++CONFIG_USE_OF=y
++CONFIG_ATAGS=y
++# CONFIG_DEPRECATED_PARAM_STRUCT is not set
++CONFIG_ZBOOT_ROM_TEXT=0
++CONFIG_ZBOOT_ROM_BSS=0
++# CONFIG_ARM_APPENDED_DTB is not set
++CONFIG_CMDLINE="noinitrd console=ttymxc0,115200"
++CONFIG_CMDLINE_FROM_BOOTLOADER=y
++# CONFIG_CMDLINE_EXTEND is not set
++# CONFIG_CMDLINE_FORCE is not set
++# CONFIG_KEXEC is not set
++# CONFIG_CRASH_DUMP is not set
++CONFIG_AUTO_ZRELADDR=y
++
++#
++# CPU Power Management
++#
++
++#
++# CPU Frequency scaling
++#
++CONFIG_CPU_FREQ=y
++CONFIG_CPU_FREQ_TABLE=y
++CONFIG_CPU_FREQ_GOV_COMMON=y
++CONFIG_CPU_FREQ_STAT=y
++# CONFIG_CPU_FREQ_STAT_DETAILS is not set
++# CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE is not set
++# CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE is not set
++# CONFIG_CPU_FREQ_DEFAULT_GOV_USERSPACE is not set
++# CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND is not set
++# CONFIG_CPU_FREQ_DEFAULT_GOV_CONSERVATIVE is not set
++CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE=y
++CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
++CONFIG_CPU_FREQ_GOV_POWERSAVE=y
++CONFIG_CPU_FREQ_GOV_USERSPACE=y
++CONFIG_CPU_FREQ_GOV_ONDEMAND=y
++CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
++CONFIG_CPU_FREQ_GOV_INTERACTIVE=y
++# CONFIG_GENERIC_CPUFREQ_CPU0 is not set
++
++#
++# ARM CPU frequency scaling drivers
++#
++# CONFIG_ARM_BIG_LITTLE_CPUFREQ is not set
++# CONFIG_ARM_EXYNOS4210_CPUFREQ is not set
++# CONFIG_ARM_EXYNOS4X12_CPUFREQ is not set
++# CONFIG_ARM_EXYNOS5250_CPUFREQ is not set
++# CONFIG_ARM_EXYNOS5440_CPUFREQ is not set
++CONFIG_ARM_IMX6_CPUFREQ=y
++# CONFIG_ARM_KIRKWOOD_CPUFREQ is not set
++CONFIG_CPU_IDLE=y
++# CONFIG_CPU_IDLE_MULTIPLE_DRIVERS is not set
++CONFIG_CPU_IDLE_GOV_LADDER=y
++CONFIG_CPU_IDLE_GOV_MENU=y
++# CONFIG_ARCH_NEEDS_CPU_IDLE_COUPLED is not set
++
++#
++# Floating point emulation
++#
++
++#
++# At least one emulation must be selected
++#
++CONFIG_VFP=y
++CONFIG_VFPv3=y
++CONFIG_NEON=y
++
++#
++# Userspace binary formats
++#
++CONFIG_BINFMT_ELF=y
++CONFIG_ARCH_BINFMT_ELF_RANDOMIZE_PIE=y
++CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS=y
++CONFIG_BINFMT_SCRIPT=y
++# CONFIG_HAVE_AOUT is not set
++CONFIG_BINFMT_MISC=m
++CONFIG_COREDUMP=y
++
++#
++# Power management options
++#
++CONFIG_SUSPEND=y
++CONFIG_SUSPEND_FREEZER=y
++CONFIG_PM_SLEEP=y
++CONFIG_PM_SLEEP_SMP=y
++# CONFIG_PM_AUTOSLEEP is not set
++# CONFIG_PM_WAKELOCKS is not set
++CONFIG_PM_RUNTIME=y
++CONFIG_PM=y
++CONFIG_PM_DEBUG=y
++# CONFIG_PM_ADVANCED_DEBUG is not set
++CONFIG_PM_TEST_SUSPEND=y
++CONFIG_PM_SLEEP_DEBUG=y
++# CONFIG_APM_EMULATION is not set
++CONFIG_ARCH_HAS_OPP=y
++CONFIG_PM_OPP=y
++CONFIG_PM_CLK=y
++CONFIG_CPU_PM=y
++CONFIG_ARCH_SUSPEND_POSSIBLE=y
++CONFIG_ARM_CPU_SUSPEND=y
++CONFIG_NET=y
++
++#
++# Networking options
++#
++CONFIG_PACKET=y
++# CONFIG_PACKET_DIAG is not set
++CONFIG_UNIX=y
++# CONFIG_UNIX_DIAG is not set
++CONFIG_XFRM=y
++# CONFIG_XFRM_USER is not set
++# CONFIG_XFRM_SUB_POLICY is not set
++# CONFIG_XFRM_MIGRATE is not set
++# CONFIG_XFRM_STATISTICS is not set
++# CONFIG_NET_KEY is not set
++CONFIG_INET=y
++# CONFIG_IP_MULTICAST is not set
++# CONFIG_IP_ADVANCED_ROUTER is not set
++CONFIG_IP_PNP=y
++CONFIG_IP_PNP_DHCP=y
++# CONFIG_IP_PNP_BOOTP is not set
++# CONFIG_IP_PNP_RARP is not set
++# CONFIG_NET_IPIP is not set
++# CONFIG_NET_IPGRE_DEMUX is not set
++CONFIG_NET_IP_TUNNEL=y
++# CONFIG_ARPD is not set
++# CONFIG_SYN_COOKIES is not set
++# CONFIG_INET_AH is not set
++# CONFIG_INET_ESP is not set
++# CONFIG_INET_IPCOMP is not set
++# CONFIG_INET_XFRM_TUNNEL is not set
++CONFIG_INET_TUNNEL=y
++# CONFIG_INET_XFRM_MODE_TRANSPORT is not set
++# CONFIG_INET_XFRM_MODE_TUNNEL is not set
++# CONFIG_INET_XFRM_MODE_BEET is not set
++# CONFIG_INET_LRO is not set
++CONFIG_INET_DIAG=y
++CONFIG_INET_TCP_DIAG=y
++# CONFIG_INET_UDP_DIAG is not set
++# CONFIG_TCP_CONG_ADVANCED is not set
++CONFIG_TCP_CONG_CUBIC=y
++CONFIG_DEFAULT_TCP_CONG="cubic"
++# CONFIG_TCP_MD5SIG is not set
++CONFIG_IPV6=y
++# CONFIG_IPV6_PRIVACY is not set
++# CONFIG_IPV6_ROUTER_PREF is not set
++# CONFIG_IPV6_OPTIMISTIC_DAD is not set
++# CONFIG_INET6_AH is not set
++# CONFIG_INET6_ESP is not set
++# CONFIG_INET6_IPCOMP is not set
++# CONFIG_IPV6_MIP6 is not set
++# CONFIG_INET6_XFRM_TUNNEL is not set
++# CONFIG_INET6_TUNNEL is not set
++CONFIG_INET6_XFRM_MODE_TRANSPORT=y
++CONFIG_INET6_XFRM_MODE_TUNNEL=y
++CONFIG_INET6_XFRM_MODE_BEET=y
++# CONFIG_INET6_XFRM_MODE_ROUTEOPTIMIZATION is not set
++CONFIG_IPV6_SIT=y
++# CONFIG_IPV6_SIT_6RD is not set
++CONFIG_IPV6_NDISC_NODETYPE=y
++# CONFIG_IPV6_TUNNEL is not set
++# CONFIG_IPV6_GRE is not set
++# CONFIG_IPV6_MULTIPLE_TABLES is not set
++# CONFIG_IPV6_MROUTE is not set
++# CONFIG_NETWORK_SECMARK is not set
++# CONFIG_NETWORK_PHY_TIMESTAMPING is not set
++CONFIG_NETFILTER=y
++# CONFIG_NETFILTER_DEBUG is not set
++CONFIG_NETFILTER_ADVANCED=y
++
++#
++# Core Netfilter Configuration
++#
++# CONFIG_NETFILTER_NETLINK_ACCT is not set
++# CONFIG_NETFILTER_NETLINK_QUEUE is not set
++# CONFIG_NETFILTER_NETLINK_LOG is not set
++# CONFIG_NF_CONNTRACK is not set
++# CONFIG_NETFILTER_XTABLES is not set
++# CONFIG_IP_VS is not set
++
++#
++# IP: Netfilter Configuration
++#
++# CONFIG_NF_DEFRAG_IPV4 is not set
++# CONFIG_IP_NF_IPTABLES is not set
++# CONFIG_IP_NF_ARPTABLES is not set
++
++#
++# IPv6: Netfilter Configuration
++#
++# CONFIG_NF_DEFRAG_IPV6 is not set
++# CONFIG_IP6_NF_IPTABLES is not set
++# CONFIG_IP_DCCP is not set
++# CONFIG_IP_SCTP is not set
++# CONFIG_RDS is not set
++# CONFIG_TIPC is not set
++# CONFIG_ATM is not set
++# CONFIG_L2TP is not set
++# CONFIG_BRIDGE is not set
++CONFIG_HAVE_NET_DSA=y
++CONFIG_VLAN_8021Q=y
++# CONFIG_VLAN_8021Q_GVRP is not set
++# CONFIG_VLAN_8021Q_MVRP is not set
++# CONFIG_DECNET is not set
++# CONFIG_LLC2 is not set
++# CONFIG_IPX is not set
++# CONFIG_ATALK is not set
++# CONFIG_X25 is not set
++# CONFIG_LAPB is not set
++# CONFIG_PHONET is not set
++# CONFIG_IEEE802154 is not set
++# CONFIG_NET_SCHED is not set
++# CONFIG_DCB is not set
++CONFIG_DNS_RESOLVER=y
++# CONFIG_BATMAN_ADV is not set
++# CONFIG_OPENVSWITCH is not set
++# CONFIG_VSOCKETS is not set
++# CONFIG_NETLINK_MMAP is not set
++# CONFIG_NETLINK_DIAG is not set
++CONFIG_RPS=y
++CONFIG_RFS_ACCEL=y
++CONFIG_XPS=y
++# CONFIG_NETPRIO_CGROUP is not set
++CONFIG_BQL=y
++# CONFIG_BPF_JIT is not set
++
++#
++# Network testing
++#
++# CONFIG_NET_PKTGEN is not set
++# CONFIG_HAMRADIO is not set
++CONFIG_CAN=y
++CONFIG_CAN_RAW=y
++CONFIG_CAN_BCM=y
++CONFIG_CAN_GW=y
++
++#
++# CAN Device Drivers
++#
++# CONFIG_CAN_VCAN is not set
++# CONFIG_CAN_SLCAN is not set
++CONFIG_CAN_DEV=y
++CONFIG_CAN_CALC_BITTIMING=y
++# CONFIG_CAN_LEDS is not set
++# CONFIG_CAN_AT91 is not set
++# CONFIG_CAN_MCP251X is not set
++CONFIG_HAVE_CAN_FLEXCAN=y
++CONFIG_CAN_FLEXCAN=y
++# CONFIG_PCH_CAN is not set
++# CONFIG_CAN_GRCAN is not set
++# CONFIG_CAN_SJA1000 is not set
++# CONFIG_CAN_C_CAN is not set
++# CONFIG_CAN_CC770 is not set
++
++#
++# CAN USB interfaces
++#
++# CONFIG_CAN_EMS_USB is not set
++# CONFIG_CAN_ESD_USB2 is not set
++# CONFIG_CAN_KVASER_USB is not set
++# CONFIG_CAN_PEAK_USB is not set
++# CONFIG_CAN_8DEV_USB is not set
++# CONFIG_CAN_SOFTING is not set
++# CONFIG_CAN_DEBUG_DEVICES is not set
++# CONFIG_IRDA is not set
++CONFIG_BT=y
++CONFIG_BT_RFCOMM=y
++CONFIG_BT_RFCOMM_TTY=y
++CONFIG_BT_BNEP=y
++CONFIG_BT_BNEP_MC_FILTER=y
++CONFIG_BT_BNEP_PROTO_FILTER=y
++CONFIG_BT_HIDP=y
++
++#
++# Bluetooth device drivers
++#
++# CONFIG_BT_HCIBTUSB is not set
++# CONFIG_BT_HCIBTSDIO is not set
++CONFIG_BT_HCIUART=y
++CONFIG_BT_HCIUART_H4=y
++CONFIG_BT_HCIUART_BCSP=y
++# CONFIG_BT_HCIUART_ATH3K is not set
++CONFIG_BT_HCIUART_LL=y
++CONFIG_BT_HCIUART_3WIRE=y
++# CONFIG_BT_HCIBCM203X is not set
++# CONFIG_BT_HCIBPA10X is not set
++# CONFIG_BT_HCIBFUSB is not set
++CONFIG_BT_HCIVHCI=m
++# CONFIG_BT_MRVL is not set
++# CONFIG_AF_RXRPC is not set
++CONFIG_WIRELESS=y
++CONFIG_WEXT_CORE=y
++CONFIG_WEXT_PROC=y
++CONFIG_CFG80211=m
++# CONFIG_NL80211_TESTMODE is not set
++CONFIG_CFG80211_DEVELOPER_WARNINGS=y
++CONFIG_CFG80211_REG_DEBUG=y
++# CONFIG_CFG80211_CERTIFICATION_ONUS is not set
++CONFIG_CFG80211_DEFAULT_PS=y
++CONFIG_CFG80211_DEBUGFS=y
++# CONFIG_CFG80211_INTERNAL_REGDB is not set
++CONFIG_CFG80211_WEXT=y
++# CONFIG_LIB80211 is not set
++CONFIG_MAC80211=m
++CONFIG_MAC80211_HAS_RC=y
++# CONFIG_MAC80211_RC_PID is not set
++CONFIG_MAC80211_RC_MINSTREL=y
++CONFIG_MAC80211_RC_MINSTREL_HT=y
++CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
++CONFIG_MAC80211_RC_DEFAULT="minstrel_ht"
++# CONFIG_MAC80211_MESH is not set
++CONFIG_MAC80211_LEDS=y
++# CONFIG_MAC80211_DEBUGFS is not set
++# CONFIG_MAC80211_MESSAGE_TRACING is not set
++# CONFIG_MAC80211_DEBUG_MENU is not set
++# CONFIG_WIMAX is not set
++# CONFIG_RFKILL is not set
++# CONFIG_RFKILL_REGULATOR is not set
++# CONFIG_NET_9P is not set
++# CONFIG_CAIF is not set
++# CONFIG_CEPH_LIB is not set
++# CONFIG_NFC is not set
++CONFIG_HAVE_BPF_JIT=y
++
++#
++# Device Drivers
++#
++
++#
++# Generic Driver Options
++#
++CONFIG_UEVENT_HELPER_PATH=""
++CONFIG_DEVTMPFS=y
++CONFIG_DEVTMPFS_MOUNT=y
++# CONFIG_STANDALONE is not set
++CONFIG_PREVENT_FIRMWARE_BUILD=y
++CONFIG_FW_LOADER=y
++CONFIG_FIRMWARE_IN_KERNEL=y
++CONFIG_EXTRA_FIRMWARE=""
++CONFIG_FW_LOADER_USER_HELPER=y
++# CONFIG_DEBUG_DRIVER is not set
++# CONFIG_DEBUG_DEVRES is not set
++# CONFIG_SYS_HYPERVISOR is not set
++# CONFIG_GENERIC_CPU_DEVICES is not set
++CONFIG_SOC_BUS=y
++CONFIG_REGMAP=y
++CONFIG_REGMAP_I2C=y
++CONFIG_REGMAP_SPI=y
++CONFIG_REGMAP_MMIO=y
++CONFIG_REGMAP_IRQ=y
++CONFIG_DMA_SHARED_BUFFER=y
++CONFIG_CMA=y
++# CONFIG_CMA_DEBUG is not set
++
++#
++# Default contiguous memory area size:
++#
++CONFIG_CMA_SIZE_MBYTES=256
++CONFIG_CMA_SIZE_SEL_MBYTES=y
++# CONFIG_CMA_SIZE_SEL_PERCENTAGE is not set
++# CONFIG_CMA_SIZE_SEL_MIN is not set
++# CONFIG_CMA_SIZE_SEL_MAX is not set
++CONFIG_CMA_ALIGNMENT=8
++CONFIG_CMA_AREAS=7
++
++#
++# Bus devices
++#
++CONFIG_IMX_WEIM=y
++CONFIG_CONNECTOR=y
++CONFIG_PROC_EVENTS=y
++CONFIG_MTD=y
++# CONFIG_MTD_TESTS is not set
++# CONFIG_MTD_REDBOOT_PARTS is not set
++CONFIG_MTD_CMDLINE_PARTS=y
++# CONFIG_MTD_AFS_PARTS is not set
++CONFIG_MTD_OF_PARTS=y
++# CONFIG_MTD_AR7_PARTS is not set
++
++#
++# User Modules And Translation Layers
++#
++CONFIG_MTD_BLKDEVS=y
++CONFIG_MTD_BLOCK=y
++# CONFIG_FTL is not set
++# CONFIG_NFTL is not set
++# CONFIG_INFTL is not set
++# CONFIG_RFD_FTL is not set
++# CONFIG_SSFDC is not set
++# CONFIG_SM_FTL is not set
++# CONFIG_MTD_OOPS is not set
++# CONFIG_MTD_SWAP is not set
++
++#
++# RAM/ROM/Flash chip drivers
++#
++CONFIG_MTD_CFI=y
++CONFIG_MTD_JEDECPROBE=y
++CONFIG_MTD_GEN_PROBE=y
++# CONFIG_MTD_CFI_ADV_OPTIONS is not set
++CONFIG_MTD_MAP_BANK_WIDTH_1=y
++CONFIG_MTD_MAP_BANK_WIDTH_2=y
++CONFIG_MTD_MAP_BANK_WIDTH_4=y
++# CONFIG_MTD_MAP_BANK_WIDTH_8 is not set
++# CONFIG_MTD_MAP_BANK_WIDTH_16 is not set
++# CONFIG_MTD_MAP_BANK_WIDTH_32 is not set
++CONFIG_MTD_CFI_I1=y
++CONFIG_MTD_CFI_I2=y
++# CONFIG_MTD_CFI_I4 is not set
++# CONFIG_MTD_CFI_I8 is not set
++CONFIG_MTD_CFI_INTELEXT=y
++CONFIG_MTD_CFI_AMDSTD=y
++CONFIG_MTD_CFI_STAA=y
++CONFIG_MTD_CFI_UTIL=y
++# CONFIG_MTD_RAM is not set
++# CONFIG_MTD_ROM is not set
++# CONFIG_MTD_ABSENT is not set
++
++#
++# Mapping drivers for chip access
++#
++# CONFIG_MTD_COMPLEX_MAPPINGS is not set
++# CONFIG_MTD_PHYSMAP is not set
++CONFIG_MTD_PHYSMAP_OF=y
++# CONFIG_MTD_IMPA7 is not set
++# CONFIG_MTD_INTEL_VR_NOR is not set
++# CONFIG_MTD_PLATRAM is not set
++
++#
++# Self-contained MTD device drivers
++#
++# CONFIG_MTD_PMC551 is not set
++CONFIG_MTD_DATAFLASH=y
++# CONFIG_MTD_DATAFLASH_WRITE_VERIFY is not set
++# CONFIG_MTD_DATAFLASH_OTP is not set
++CONFIG_MTD_M25P80=y
++CONFIG_M25PXX_USE_FAST_READ=y
++CONFIG_MTD_SST25L=y
++# CONFIG_MTD_SLRAM is not set
++# CONFIG_MTD_PHRAM is not set
++# CONFIG_MTD_MTDRAM is not set
++# CONFIG_MTD_BLOCK2MTD is not set
++
++#
++# Disk-On-Chip Device Drivers
++#
++# CONFIG_MTD_DOCG3 is not set
++CONFIG_MTD_NAND_ECC=y
++# CONFIG_MTD_NAND_ECC_SMC is not set
++CONFIG_MTD_NAND=y
++# CONFIG_MTD_NAND_ECC_BCH is not set
++# CONFIG_MTD_SM_COMMON is not set
++# CONFIG_MTD_NAND_DENALI is not set
++# CONFIG_MTD_NAND_GPIO is not set
++CONFIG_MTD_NAND_IDS=y
++# CONFIG_MTD_NAND_RICOH is not set
++# CONFIG_MTD_NAND_DISKONCHIP is not set
++# CONFIG_MTD_NAND_DOCG4 is not set
++# CONFIG_MTD_NAND_CAFE is not set
++# CONFIG_MTD_NAND_NANDSIM is not set
++CONFIG_MTD_NAND_GPMI_NAND=y
++# CONFIG_MTD_NAND_PLATFORM is not set
++# CONFIG_MTD_ALAUDA is not set
++CONFIG_MTD_NAND_MXC=y
++# CONFIG_MTD_ONENAND is not set
++
++#
++# LPDDR flash memory drivers
++#
++# CONFIG_MTD_LPDDR is not set
++CONFIG_MTD_UBI=y
++CONFIG_MTD_UBI_WL_THRESHOLD=4096
++CONFIG_MTD_UBI_BEB_LIMIT=20
++# CONFIG_MTD_UBI_FASTMAP is not set
++# CONFIG_MTD_UBI_GLUEBI is not set
++CONFIG_DTC=y
++CONFIG_OF=y
++
++#
++# Device Tree and Open Firmware support
++#
++CONFIG_PROC_DEVICETREE=y
++# CONFIG_OF_SELFTEST is not set
++CONFIG_OF_FLATTREE=y
++CONFIG_OF_EARLY_FLATTREE=y
++CONFIG_OF_ADDRESS=y
++CONFIG_OF_IRQ=y
++CONFIG_OF_DEVICE=y
++CONFIG_OF_I2C=y
++CONFIG_OF_NET=y
++CONFIG_OF_MDIO=y
++CONFIG_OF_PCI=y
++CONFIG_OF_PCI_IRQ=y
++CONFIG_OF_MTD=y
++# CONFIG_PARPORT is not set
++CONFIG_BLK_DEV=y
++# CONFIG_BLK_DEV_PCIESSD_MTIP32XX is not set
++# CONFIG_BLK_CPQ_CISS_DA is not set
++# CONFIG_BLK_DEV_DAC960 is not set
++# CONFIG_BLK_DEV_UMEM is not set
++# CONFIG_BLK_DEV_COW_COMMON is not set
++CONFIG_BLK_DEV_LOOP=y
++CONFIG_BLK_DEV_LOOP_MIN_COUNT=8
++# CONFIG_BLK_DEV_CRYPTOLOOP is not set
++# CONFIG_BLK_DEV_DRBD is not set
++# CONFIG_BLK_DEV_NBD is not set
++# CONFIG_BLK_DEV_NVME is not set
++# CONFIG_BLK_DEV_SX8 is not set
++CONFIG_BLK_DEV_RAM=y
++CONFIG_BLK_DEV_RAM_COUNT=16
++CONFIG_BLK_DEV_RAM_SIZE=65536
++# CONFIG_BLK_DEV_XIP is not set
++# CONFIG_CDROM_PKTCDVD is not set
++# CONFIG_ATA_OVER_ETH is not set
++# CONFIG_MG_DISK is not set
++# CONFIG_BLK_DEV_RBD is not set
++# CONFIG_BLK_DEV_RSXX is not set
++
++#
++# Misc devices
++#
++# CONFIG_SENSORS_LIS3LV02D is not set
++# CONFIG_AD525X_DPOT is not set
++# CONFIG_ATMEL_PWM is not set
++# CONFIG_DUMMY_IRQ is not set
++# CONFIG_PHANTOM is not set
++# CONFIG_INTEL_MID_PTI is not set
++# CONFIG_SGI_IOC4 is not set
++# CONFIG_TIFM_CORE is not set
++# CONFIG_ICS932S401 is not set
++# CONFIG_ATMEL_SSC is not set
++# CONFIG_ENCLOSURE_SERVICES is not set
++# CONFIG_HP_ILO is not set
++# CONFIG_APDS9802ALS is not set
++# CONFIG_ISL29003 is not set
++# CONFIG_ISL29020 is not set
++# CONFIG_SENSORS_TSL2550 is not set
++# CONFIG_SENSORS_BH1780 is not set
++# CONFIG_SENSORS_BH1770 is not set
++# CONFIG_SENSORS_APDS990X is not set
++# CONFIG_HMC6352 is not set
++# CONFIG_DS1682 is not set
++# CONFIG_TI_DAC7512 is not set
++# CONFIG_BMP085_I2C is not set
++# CONFIG_BMP085_SPI is not set
++# CONFIG_PCH_PHUB is not set
++# CONFIG_USB_SWITCH_FSA9480 is not set
++# CONFIG_LATTICE_ECP3_CONFIG is not set
++CONFIG_SRAM=y
++# CONFIG_C2PORT is not set
++
++#
++# EEPROM support
++#
++CONFIG_EEPROM_AT24=y
++CONFIG_EEPROM_AT25=y
++# CONFIG_EEPROM_LEGACY is not set
++# CONFIG_EEPROM_MAX6875 is not set
++# CONFIG_EEPROM_93CX6 is not set
++# CONFIG_EEPROM_93XX46 is not set
++# CONFIG_CB710_CORE is not set
++
++#
++# Texas Instruments shared transport line discipline
++#
++# CONFIG_TI_ST is not set
++# CONFIG_SENSORS_LIS3_SPI is not set
++# CONFIG_SENSORS_LIS3_I2C is not set
++
++#
++# Altera FPGA firmware download module
++#
++# CONFIG_ALTERA_STAPL is not set
++CONFIG_HAVE_IDE=y
++# CONFIG_IDE is not set
++
++#
++# SCSI device support
++#
++CONFIG_SCSI_MOD=y
++# CONFIG_RAID_ATTRS is not set
++CONFIG_SCSI=y
++CONFIG_SCSI_DMA=y
++# CONFIG_SCSI_TGT is not set
++# CONFIG_SCSI_NETLINK is not set
++# CONFIG_SCSI_PROC_FS is not set
++
++#
++# SCSI support type (disk, tape, CD-ROM)
++#
++CONFIG_BLK_DEV_SD=y
++# CONFIG_CHR_DEV_ST is not set
++# CONFIG_CHR_DEV_OSST is not set
++# CONFIG_BLK_DEV_SR is not set
++# CONFIG_CHR_DEV_SG is not set
++# CONFIG_CHR_DEV_SCH is not set
++CONFIG_SCSI_MULTI_LUN=y
++CONFIG_SCSI_CONSTANTS=y
++CONFIG_SCSI_LOGGING=y
++CONFIG_SCSI_SCAN_ASYNC=y
++
++#
++# SCSI Transports
++#
++# CONFIG_SCSI_SPI_ATTRS is not set
++# CONFIG_SCSI_FC_ATTRS is not set
++# CONFIG_SCSI_ISCSI_ATTRS is not set
++# CONFIG_SCSI_SAS_ATTRS is not set
++# CONFIG_SCSI_SAS_LIBSAS is not set
++# CONFIG_SCSI_SRP_ATTRS is not set
++# CONFIG_SCSI_LOWLEVEL is not set
++# CONFIG_SCSI_DH is not set
++# CONFIG_SCSI_OSD_INITIATOR is not set
++CONFIG_ATA=y
++# CONFIG_ATA_NONSTANDARD is not set
++CONFIG_ATA_VERBOSE_ERROR=y
++CONFIG_SATA_PMP=y
++
++#
++# Controllers with non-SFF native interface
++#
++# CONFIG_SATA_AHCI is not set
++CONFIG_SATA_AHCI_PLATFORM=y
++CONFIG_AHCI_IMX=y
++# CONFIG_SATA_INIC162X is not set
++# CONFIG_SATA_ACARD_AHCI is not set
++# CONFIG_SATA_SIL24 is not set
++CONFIG_ATA_SFF=y
++
++#
++# SFF controllers with custom DMA interface
++#
++# CONFIG_PDC_ADMA is not set
++# CONFIG_SATA_QSTOR is not set
++# CONFIG_SATA_SX4 is not set
++CONFIG_ATA_BMDMA=y
++
++#
++# SATA SFF controllers with BMDMA
++#
++# CONFIG_ATA_PIIX is not set
++# CONFIG_SATA_HIGHBANK is not set
++# CONFIG_SATA_MV is not set
++# CONFIG_SATA_NV is not set
++# CONFIG_SATA_PROMISE is not set
++# CONFIG_SATA_SIL is not set
++# CONFIG_SATA_SIS is not set
++# CONFIG_SATA_SVW is not set
++# CONFIG_SATA_ULI is not set
++# CONFIG_SATA_VIA is not set
++# CONFIG_SATA_VITESSE is not set
++
++#
++# PATA SFF controllers with BMDMA
++#
++# CONFIG_PATA_ALI is not set
++# CONFIG_PATA_AMD is not set
++# CONFIG_PATA_ARASAN_CF is not set
++# CONFIG_PATA_ARTOP is not set
++# CONFIG_PATA_ATIIXP is not set
++# CONFIG_PATA_ATP867X is not set
++# CONFIG_PATA_CMD64X is not set
++# CONFIG_PATA_CS5520 is not set
++# CONFIG_PATA_CS5530 is not set
++# CONFIG_PATA_CS5536 is not set
++# CONFIG_PATA_CYPRESS is not set
++# CONFIG_PATA_EFAR is not set
++# CONFIG_PATA_HPT366 is not set
++# CONFIG_PATA_HPT37X is not set
++# CONFIG_PATA_HPT3X2N is not set
++# CONFIG_PATA_HPT3X3 is not set
++CONFIG_PATA_IMX=y
++# CONFIG_PATA_IT8213 is not set
++# CONFIG_PATA_IT821X is not set
++# CONFIG_PATA_JMICRON is not set
++# CONFIG_PATA_MARVELL is not set
++# CONFIG_PATA_NETCELL is not set
++# CONFIG_PATA_NINJA32 is not set
++# CONFIG_PATA_NS87415 is not set
++# CONFIG_PATA_OLDPIIX is not set
++# CONFIG_PATA_OPTIDMA is not set
++# CONFIG_PATA_PDC2027X is not set
++# CONFIG_PATA_PDC_OLD is not set
++# CONFIG_PATA_RADISYS is not set
++# CONFIG_PATA_RDC is not set
++# CONFIG_PATA_SC1200 is not set
++# CONFIG_PATA_SCH is not set
++# CONFIG_PATA_SERVERWORKS is not set
++# CONFIG_PATA_SIL680 is not set
++# CONFIG_PATA_SIS is not set
++# CONFIG_PATA_TOSHIBA is not set
++# CONFIG_PATA_TRIFLEX is not set
++# CONFIG_PATA_VIA is not set
++# CONFIG_PATA_WINBOND is not set
++
++#
++# PIO-only SFF controllers
++#
++# CONFIG_PATA_CMD640_PCI is not set
++# CONFIG_PATA_MPIIX is not set
++# CONFIG_PATA_NS87410 is not set
++# CONFIG_PATA_OPTI is not set
++# CONFIG_PATA_PLATFORM is not set
++# CONFIG_PATA_RZ1000 is not set
++
++#
++# Generic fallback / legacy drivers
++#
++# CONFIG_ATA_GENERIC is not set
++# CONFIG_PATA_LEGACY is not set
++# CONFIG_MD is not set
++# CONFIG_TARGET_CORE is not set
++# CONFIG_FUSION is not set
++
++#
++# IEEE 1394 (FireWire) support
++#
++# CONFIG_FIREWIRE is not set
++# CONFIG_FIREWIRE_NOSY is not set
++# CONFIG_I2O is not set
++CONFIG_NETDEVICES=y
++CONFIG_NET_CORE=y
++# CONFIG_BONDING is not set
++# CONFIG_DUMMY is not set
++# CONFIG_EQUALIZER is not set
++# CONFIG_NET_FC is not set
++CONFIG_MII=y
++# CONFIG_NET_TEAM is not set
++# CONFIG_MACVLAN is not set
++# CONFIG_VXLAN is not set
++# CONFIG_NETCONSOLE is not set
++# CONFIG_NETPOLL is not set
++# CONFIG_NET_POLL_CONTROLLER is not set
++# CONFIG_TUN is not set
++# CONFIG_VETH is not set
++# CONFIG_ARCNET is not set
++
++#
++# CAIF transport drivers
++#
++
++#
++# Distributed Switch Architecture drivers
++#
++# CONFIG_NET_DSA_MV88E6XXX is not set
++# CONFIG_NET_DSA_MV88E6060 is not set
++# CONFIG_NET_DSA_MV88E6XXX_NEED_PPU is not set
++# CONFIG_NET_DSA_MV88E6131 is not set
++# CONFIG_NET_DSA_MV88E6123_61_65 is not set
++CONFIG_ETHERNET=y
++CONFIG_NET_VENDOR_3COM=y
++# CONFIG_VORTEX is not set
++# CONFIG_TYPHOON is not set
++CONFIG_NET_VENDOR_ADAPTEC=y
++# CONFIG_ADAPTEC_STARFIRE is not set
++CONFIG_NET_VENDOR_ALTEON=y
++# CONFIG_ACENIC is not set
++CONFIG_NET_VENDOR_AMD=y
++# CONFIG_AMD8111_ETH is not set
++# CONFIG_PCNET32 is not set
++CONFIG_NET_VENDOR_ATHEROS=y
++# CONFIG_ATL2 is not set
++# CONFIG_ATL1 is not set
++# CONFIG_ATL1E is not set
++# CONFIG_ATL1C is not set
++# CONFIG_ALX is not set
++CONFIG_NET_CADENCE=y
++# CONFIG_ARM_AT91_ETHER is not set
++# CONFIG_MACB is not set
++# CONFIG_NET_VENDOR_BROADCOM is not set
++CONFIG_NET_VENDOR_BROCADE=y
++# CONFIG_BNA is not set
++# CONFIG_NET_CALXEDA_XGMAC is not set
++CONFIG_NET_VENDOR_CHELSIO=y
++# CONFIG_CHELSIO_T1 is not set
++# CONFIG_CHELSIO_T3 is not set
++# CONFIG_CHELSIO_T4 is not set
++# CONFIG_CHELSIO_T4VF is not set
++CONFIG_NET_VENDOR_CIRRUS=y
++CONFIG_CS89x0=y
++CONFIG_CS89x0_PLATFORM=y
++CONFIG_NET_VENDOR_CISCO=y
++# CONFIG_ENIC is not set
++# CONFIG_DM9000 is not set
++# CONFIG_DNET is not set
++CONFIG_NET_VENDOR_DEC=y
++# CONFIG_NET_TULIP is not set
++CONFIG_NET_VENDOR_DLINK=y
++# CONFIG_DL2K is not set
++# CONFIG_SUNDANCE is not set
++CONFIG_NET_VENDOR_EMULEX=y
++# CONFIG_BE2NET is not set
++CONFIG_NET_VENDOR_EXAR=y
++# CONFIG_S2IO is not set
++# CONFIG_VXGE is not set
++# CONFIG_NET_VENDOR_FARADAY is not set
++CONFIG_NET_VENDOR_FREESCALE=y
++CONFIG_FEC=y
++CONFIG_NET_VENDOR_HP=y
++# CONFIG_HP100 is not set
++# CONFIG_NET_VENDOR_INTEL is not set
++# CONFIG_IP1000 is not set
++# CONFIG_JME is not set
++# CONFIG_NET_VENDOR_MARVELL is not set
++CONFIG_NET_VENDOR_MELLANOX=y
++# CONFIG_MLX4_EN is not set
++# CONFIG_MLX4_CORE is not set
++# CONFIG_NET_VENDOR_MICREL is not set
++# CONFIG_NET_VENDOR_MICROCHIP is not set
++CONFIG_NET_VENDOR_MYRI=y
++# CONFIG_MYRI10GE is not set
++# CONFIG_FEALNX is not set
++# CONFIG_NET_VENDOR_NATSEMI is not set
++CONFIG_NET_VENDOR_NVIDIA=y
++# CONFIG_FORCEDETH is not set
++CONFIG_NET_VENDOR_OKI=y
++# CONFIG_PCH_GBE is not set
++# CONFIG_ETHOC is not set
++CONFIG_NET_PACKET_ENGINE=y
++# CONFIG_HAMACHI is not set
++# CONFIG_YELLOWFIN is not set
++CONFIG_NET_VENDOR_QLOGIC=y
++# CONFIG_QLA3XXX is not set
++# CONFIG_QLCNIC is not set
++# CONFIG_QLGE is not set
++# CONFIG_NETXEN_NIC is not set
++CONFIG_NET_VENDOR_REALTEK=y
++# CONFIG_8139CP is not set
++# CONFIG_8139TOO is not set
++# CONFIG_R8169 is not set
++CONFIG_NET_VENDOR_RDC=y
++# CONFIG_R6040 is not set
++# CONFIG_NET_VENDOR_SEEQ is not set
++CONFIG_NET_VENDOR_SILAN=y
++# CONFIG_SC92031 is not set
++CONFIG_NET_VENDOR_SIS=y
++# CONFIG_SIS900 is not set
++# CONFIG_SIS190 is not set
++# CONFIG_SFC is not set
++CONFIG_NET_VENDOR_SMSC=y
++CONFIG_SMC91X=y
++# CONFIG_EPIC100 is not set
++CONFIG_SMC911X=y
++CONFIG_SMSC911X=y
++# CONFIG_SMSC911X_ARCH_HOOKS is not set
++# CONFIG_SMSC9420 is not set
++# CONFIG_NET_VENDOR_STMICRO is not set
++CONFIG_NET_VENDOR_SUN=y
++# CONFIG_HAPPYMEAL is not set
++# CONFIG_SUNGEM is not set
++# CONFIG_CASSINI is not set
++# CONFIG_NIU is not set
++CONFIG_NET_VENDOR_TEHUTI=y
++# CONFIG_TEHUTI is not set
++CONFIG_NET_VENDOR_TI=y
++# CONFIG_TLAN is not set
++CONFIG_NET_VENDOR_VIA=y
++# CONFIG_VIA_RHINE is not set
++# CONFIG_VIA_VELOCITY is not set
++CONFIG_NET_VENDOR_WIZNET=y
++# CONFIG_WIZNET_W5100 is not set
++# CONFIG_WIZNET_W5300 is not set
++# CONFIG_FDDI is not set
++# CONFIG_HIPPI is not set
++CONFIG_PHYLIB=y
++
++#
++# MII PHY device drivers
++#
++# CONFIG_AT803X_PHY is not set
++# CONFIG_AMD_PHY is not set
++# CONFIG_MARVELL_PHY is not set
++# CONFIG_DAVICOM_PHY is not set
++# CONFIG_QSEMI_PHY is not set
++# CONFIG_LXT_PHY is not set
++# CONFIG_CICADA_PHY is not set
++# CONFIG_VITESSE_PHY is not set
++# CONFIG_SMSC_PHY is not set
++# CONFIG_BROADCOM_PHY is not set
++# CONFIG_BCM87XX_PHY is not set
++# CONFIG_ICPLUS_PHY is not set
++# CONFIG_REALTEK_PHY is not set
++# CONFIG_NATIONAL_PHY is not set
++# CONFIG_STE10XP is not set
++# CONFIG_LSI_ET1011C_PHY is not set
++CONFIG_MICREL_PHY=y
++# CONFIG_FIXED_PHY is not set
++# CONFIG_MDIO_BITBANG is not set
++# CONFIG_MDIO_BUS_MUX_GPIO is not set
++# CONFIG_MDIO_BUS_MUX_MMIOREG is not set
++# CONFIG_MICREL_KS8995MA is not set
++# CONFIG_PPP is not set
++# CONFIG_SLIP is not set
++
++#
++# USB Network Adapters
++#
++# CONFIG_USB_CATC is not set
++# CONFIG_USB_KAWETH is not set
++# CONFIG_USB_PEGASUS is not set
++# CONFIG_USB_RTL8150 is not set
++# CONFIG_USB_RTL8152 is not set
++# CONFIG_USB_USBNET is not set
++# CONFIG_USB_IPHETH is not set
++CONFIG_WLAN=y
++# CONFIG_LIBERTAS_THINFIRM is not set
++# CONFIG_ATMEL is not set
++# CONFIG_AT76C50X_USB is not set
++# CONFIG_PRISM54 is not set
++# CONFIG_USB_ZD1201 is not set
++# CONFIG_USB_NET_RNDIS_WLAN is not set
++# CONFIG_RTL8180 is not set
++# CONFIG_RTL8187 is not set
++# CONFIG_ADM8211 is not set
++# CONFIG_MAC80211_HWSIM is not set
++# CONFIG_MWL8K is not set
++CONFIG_ATH_CARDS=m
++# CONFIG_ATH_DEBUG is not set
++# CONFIG_ATH5K is not set
++# CONFIG_ATH5K_PCI is not set
++# CONFIG_ATH9K is not set
++# CONFIG_ATH9K_HTC is not set
++# CONFIG_CARL9170 is not set
++CONFIG_ATH6KL=m
++CONFIG_ATH6KL_SDIO=m
++# CONFIG_ATH6KL_USB is not set
++# CONFIG_ATH6KL_DEBUG is not set
++# CONFIG_AR5523 is not set
++# CONFIG_WIL6210 is not set
++# CONFIG_B43 is not set
++# CONFIG_B43LEGACY is not set
++# CONFIG_BRCMFMAC is not set
++# CONFIG_HOSTAP is not set
++# CONFIG_IPW2100 is not set
++# CONFIG_IPW2200 is not set
++CONFIG_IWLWIFI=m
++CONFIG_IWLDVM=m
++# CONFIG_IWLMVM is not set
++CONFIG_IWLWIFI_OPMODE_MODULAR=y
++
++#
++# Debugging Options
++#
++# CONFIG_IWLWIFI_DEBUG is not set
++# CONFIG_IWLWIFI_P2P is not set
++# CONFIG_IWL4965 is not set
++# CONFIG_IWL3945 is not set
++# CONFIG_LIBERTAS is not set
++# CONFIG_HERMES is not set
++# CONFIG_P54_COMMON is not set
++# CONFIG_RT2X00 is not set
++# CONFIG_RTLWIFI is not set
++CONFIG_WL_TI=y
++# CONFIG_WL1251 is not set
++CONFIG_WL12XX=m
++CONFIG_WL18XX=m
++CONFIG_WLCORE=m
++# CONFIG_WLCORE_SPI is not set
++CONFIG_WLCORE_SDIO=m
++CONFIG_WILINK_PLATFORM_DATA=y
++# CONFIG_ZD1211RW is not set
++# CONFIG_MWIFIEX is not set
++
++#
++# Enable WiMAX (Networking options) to see the WiMAX drivers
++#
++# CONFIG_WAN is not set
++# CONFIG_VMXNET3 is not set
++# CONFIG_ISDN is not set
++
++#
++# Input device support
++#
++CONFIG_INPUT=y
++# CONFIG_INPUT_FF_MEMLESS is not set
++CONFIG_INPUT_POLLDEV=y
++# CONFIG_INPUT_SPARSEKMAP is not set
++CONFIG_INPUT_MATRIXKMAP=y
++
++#
++# Userland interfaces
++#
++CONFIG_INPUT_MOUSEDEV=y
++# CONFIG_INPUT_MOUSEDEV_PSAUX is not set
++CONFIG_INPUT_MOUSEDEV_SCREEN_X=1024
++CONFIG_INPUT_MOUSEDEV_SCREEN_Y=768
++# CONFIG_INPUT_JOYDEV is not set
++CONFIG_INPUT_EVDEV=y
++CONFIG_INPUT_EVBUG=m
++
++#
++# Input Device Drivers
++#
++CONFIG_INPUT_KEYBOARD=y
++# CONFIG_KEYBOARD_ADP5588 is not set
++# CONFIG_KEYBOARD_ADP5589 is not set
++CONFIG_KEYBOARD_ATKBD=y
++# CONFIG_KEYBOARD_QT1070 is not set
++# CONFIG_KEYBOARD_QT2160 is not set
++# CONFIG_KEYBOARD_LKKBD is not set
++CONFIG_KEYBOARD_GPIO=y
++# CONFIG_KEYBOARD_TCA6416 is not set
++# CONFIG_KEYBOARD_TCA8418 is not set
++# CONFIG_KEYBOARD_MATRIX is not set
++# CONFIG_KEYBOARD_LM8323 is not set
++# CONFIG_KEYBOARD_LM8333 is not set
++# CONFIG_KEYBOARD_MAX7359 is not set
++# CONFIG_KEYBOARD_MCS is not set
++# CONFIG_KEYBOARD_MPR121 is not set
++CONFIG_KEYBOARD_IMX=y
++# CONFIG_KEYBOARD_NEWTON is not set
++# CONFIG_KEYBOARD_OPENCORES is not set
++# CONFIG_KEYBOARD_SAMSUNG is not set
++# CONFIG_KEYBOARD_STOWAWAY is not set
++# CONFIG_KEYBOARD_SUNKBD is not set
++# CONFIG_KEYBOARD_XTKBD is not set
++CONFIG_INPUT_MOUSE=y
++CONFIG_MOUSE_PS2=m
++CONFIG_MOUSE_PS2_ALPS=y
++CONFIG_MOUSE_PS2_LOGIPS2PP=y
++CONFIG_MOUSE_PS2_SYNAPTICS=y
++CONFIG_MOUSE_PS2_CYPRESS=y
++CONFIG_MOUSE_PS2_TRACKPOINT=y
++CONFIG_MOUSE_PS2_ELANTECH=y
++# CONFIG_MOUSE_PS2_SENTELIC is not set
++# CONFIG_MOUSE_PS2_TOUCHKIT is not set
++# CONFIG_MOUSE_SERIAL is not set
++# CONFIG_MOUSE_APPLETOUCH is not set
++# CONFIG_MOUSE_BCM5974 is not set
++# CONFIG_MOUSE_CYAPA is not set
++# CONFIG_MOUSE_VSXXXAA is not set
++# CONFIG_MOUSE_GPIO is not set
++# CONFIG_MOUSE_SYNAPTICS_I2C is not set
++# CONFIG_MOUSE_SYNAPTICS_USB is not set
++# CONFIG_INPUT_JOYSTICK is not set
++# CONFIG_INPUT_TABLET is not set
++CONFIG_INPUT_TOUCHSCREEN=y
++CONFIG_TOUCHSCREEN_ADS7846=y
++CONFIG_TOUCHSCREEN_CTW6120=y
++# CONFIG_TOUCHSCREEN_AD7877 is not set
++# CONFIG_TOUCHSCREEN_AD7879 is not set
++# CONFIG_TOUCHSCREEN_ATMEL_MXT is not set
++# CONFIG_TOUCHSCREEN_AUO_PIXCIR is not set
++# CONFIG_TOUCHSCREEN_BU21013 is not set
++# CONFIG_TOUCHSCREEN_CY8CTMG110 is not set
++# CONFIG_TOUCHSCREEN_CYTTSP_CORE is not set
++# CONFIG_TOUCHSCREEN_DA9052 is not set
++# CONFIG_TOUCHSCREEN_DYNAPRO is not set
++# CONFIG_TOUCHSCREEN_HAMPSHIRE is not set
++# CONFIG_TOUCHSCREEN_EETI is not set
++CONFIG_TOUCHSCREEN_EGALAX=y
++# CONFIG_TOUCHSCREEN_EGALAX_SINGLE_TOUCH is not set
++CONFIG_TOUCHSCREEN_ELAN=y
++# CONFIG_TOUCHSCREEN_FUJITSU is not set
++# CONFIG_TOUCHSCREEN_ILI210X is not set
++# CONFIG_TOUCHSCREEN_GUNZE is not set
++# CONFIG_TOUCHSCREEN_ELO is not set
++# CONFIG_TOUCHSCREEN_WACOM_W8001 is not set
++# CONFIG_TOUCHSCREEN_WACOM_I2C is not set
++# CONFIG_TOUCHSCREEN_MAX11801 is not set
++# CONFIG_TOUCHSCREEN_MCS5000 is not set
++# CONFIG_TOUCHSCREEN_MMS114 is not set
++# CONFIG_TOUCHSCREEN_MTOUCH is not set
++# CONFIG_TOUCHSCREEN_INEXIO is not set
++# CONFIG_TOUCHSCREEN_MK712 is not set
++# CONFIG_TOUCHSCREEN_PENMOUNT is not set
++# CONFIG_TOUCHSCREEN_EDT_FT5X06 is not set
++# CONFIG_TOUCHSCREEN_TOUCHRIGHT is not set
++# CONFIG_TOUCHSCREEN_TOUCHWIN is not set
++# CONFIG_TOUCHSCREEN_PIXCIR is not set
++# CONFIG_TOUCHSCREEN_USB_COMPOSITE is not set
++CONFIG_TOUCHSCREEN_MC13783=y
++# CONFIG_TOUCHSCREEN_TOUCHIT213 is not set
++# CONFIG_TOUCHSCREEN_TSC_SERIO is not set
++# CONFIG_TOUCHSCREEN_TSC2005 is not set
++# CONFIG_TOUCHSCREEN_TSC2007 is not set
++# CONFIG_TOUCHSCREEN_W90X900 is not set
++# CONFIG_TOUCHSCREEN_ST1232 is not set
++# CONFIG_TOUCHSCREEN_TPS6507X is not set
++CONFIG_INPUT_MISC=y
++# CONFIG_INPUT_AD714X is not set
++# CONFIG_INPUT_BMA150 is not set
++# CONFIG_INPUT_MC13783_PWRBUTTON is not set
++CONFIG_INPUT_MMA8450=y
++# CONFIG_INPUT_MPU3050 is not set
++# CONFIG_INPUT_GP2A is not set
++# CONFIG_INPUT_GPIO_TILT_POLLED is not set
++# CONFIG_INPUT_ATI_REMOTE2 is not set
++# CONFIG_INPUT_KEYSPAN_REMOTE is not set
++# CONFIG_INPUT_KXTJ9 is not set
++# CONFIG_INPUT_POWERMATE is not set
++# CONFIG_INPUT_YEALINK is not set
++# CONFIG_INPUT_CM109 is not set
++# CONFIG_INPUT_UINPUT is not set
++# CONFIG_INPUT_PCF8574 is not set
++# CONFIG_INPUT_PWM_BEEPER is not set
++# CONFIG_INPUT_GPIO_ROTARY_ENCODER is not set
++# CONFIG_INPUT_DA9052_ONKEY is not set
++# CONFIG_INPUT_ADXL34X is not set
++# CONFIG_INPUT_IMS_PCU is not set
++# CONFIG_INPUT_CMA3000 is not set
++CONFIG_INPUT_ISL29023=y
++
++#
++# Hardware I/O ports
++#
++CONFIG_SERIO=y
++CONFIG_SERIO_SERPORT=m
++# CONFIG_SERIO_PCIPS2 is not set
++CONFIG_SERIO_LIBPS2=y
++# CONFIG_SERIO_RAW is not set
++# CONFIG_SERIO_ALTERA_PS2 is not set
++# CONFIG_SERIO_PS2MULT is not set
++# CONFIG_SERIO_ARC_PS2 is not set
++# CONFIG_SERIO_APBPS2 is not set
++# CONFIG_GAMEPORT is not set
++
++#
++# Character devices
++#
++CONFIG_TTY=y
++CONFIG_VT=y
++CONFIG_CONSOLE_TRANSLATIONS=y
++CONFIG_VT_CONSOLE=y
++CONFIG_VT_CONSOLE_SLEEP=y
++CONFIG_HW_CONSOLE=y
++CONFIG_VT_HW_CONSOLE_BINDING=y
++CONFIG_UNIX98_PTYS=y
++# CONFIG_DEVPTS_MULTIPLE_INSTANCES is not set
++# CONFIG_LEGACY_PTYS is not set
++# CONFIG_SERIAL_NONSTANDARD is not set
++# CONFIG_NOZOMI is not set
++# CONFIG_N_GSM is not set
++# CONFIG_TRACE_SINK is not set
++# CONFIG_DEVKMEM is not set
++
++#
++# Serial drivers
++#
++# CONFIG_SERIAL_8250 is not set
++
++#
++# Non-8250 serial port support
++#
++# CONFIG_SERIAL_MAX3100 is not set
++# CONFIG_SERIAL_MAX310X is not set
++# CONFIG_SERIAL_MFD_HSU is not set
++CONFIG_SERIAL_IMX=y
++CONFIG_SERIAL_IMX_CONSOLE=y
++CONFIG_SERIAL_CORE=y
++CONFIG_SERIAL_CORE_CONSOLE=y
++# CONFIG_SERIAL_JSM is not set
++# CONFIG_SERIAL_SCCNXP is not set
++# CONFIG_SERIAL_TIMBERDALE is not set
++# CONFIG_SERIAL_ALTERA_JTAGUART is not set
++# CONFIG_SERIAL_ALTERA_UART is not set
++# CONFIG_SERIAL_IFX6X60 is not set
++# CONFIG_SERIAL_PCH_UART is not set
++# CONFIG_SERIAL_XILINX_PS_UART is not set
++# CONFIG_SERIAL_ARC is not set
++# CONFIG_SERIAL_RP2 is not set
++CONFIG_SERIAL_FSL_LPUART=y
++CONFIG_SERIAL_FSL_LPUART_CONSOLE=y
++# CONFIG_TTY_PRINTK is not set
++CONFIG_FSL_OTP=y
++# CONFIG_HVC_DCC is not set
++# CONFIG_IPMI_HANDLER is not set
++CONFIG_HW_RANDOM=y
++# CONFIG_HW_RANDOM_TIMERIOMEM is not set
++# CONFIG_HW_RANDOM_ATMEL is not set
++# CONFIG_HW_RANDOM_IMX_RNG is not set
++# CONFIG_HW_RANDOM_EXYNOS is not set
++# CONFIG_R3964 is not set
++# CONFIG_APPLICOM is not set
++# CONFIG_RAW_DRIVER is not set
++# CONFIG_TCG_TPM is not set
++CONFIG_DEVPORT=y
++# CONFIG_MXS_VIIM is not set
++CONFIG_I2C=y
++CONFIG_I2C_BOARDINFO=y
++# CONFIG_I2C_COMPAT is not set
++CONFIG_I2C_CHARDEV=y
++# CONFIG_I2C_MUX is not set
++# CONFIG_I2C_HELPER_AUTO is not set
++# CONFIG_I2C_SMBUS is not set
++
++#
++# I2C Algorithms
++#
++CONFIG_I2C_ALGOBIT=y
++CONFIG_I2C_ALGOPCF=m
++CONFIG_I2C_ALGOPCA=m
++
++#
++# I2C Hardware Bus support
++#
++
++#
++# PC SMBus host controller drivers
++#
++# CONFIG_I2C_ALI1535 is not set
++# CONFIG_I2C_ALI1563 is not set
++# CONFIG_I2C_ALI15X3 is not set
++# CONFIG_I2C_AMD756 is not set
++# CONFIG_I2C_AMD8111 is not set
++# CONFIG_I2C_I801 is not set
++# CONFIG_I2C_ISCH is not set
++# CONFIG_I2C_PIIX4 is not set
++# CONFIG_I2C_NFORCE2 is not set
++# CONFIG_I2C_SIS5595 is not set
++# CONFIG_I2C_SIS630 is not set
++# CONFIG_I2C_SIS96X is not set
++# CONFIG_I2C_VIA is not set
++# CONFIG_I2C_VIAPRO is not set
++
++#
++# I2C system bus drivers (mostly embedded / system-on-chip)
++#
++# CONFIG_I2C_CBUS_GPIO is not set
++# CONFIG_I2C_DESIGNWARE_PLATFORM is not set
++# CONFIG_I2C_DESIGNWARE_PCI is not set
++# CONFIG_I2C_EG20T is not set
++# CONFIG_I2C_GPIO is not set
++CONFIG_I2C_IMX=y
++# CONFIG_I2C_INTEL_MID is not set
++# CONFIG_I2C_OCORES is not set
++# CONFIG_I2C_PCA_PLATFORM is not set
++# CONFIG_I2C_PXA_PCI is not set
++# CONFIG_I2C_SIMTEC is not set
++# CONFIG_I2C_XILINX is not set
++
++#
++# External I2C/SMBus adapter drivers
++#
++# CONFIG_I2C_DIOLAN_U2C is not set
++# CONFIG_I2C_PARPORT_LIGHT is not set
++# CONFIG_I2C_TAOS_EVM is not set
++# CONFIG_I2C_TINY_USB is not set
++
++#
++# Other I2C/SMBus bus drivers
++#
++# CONFIG_I2C_STUB is not set
++# CONFIG_I2C_DEBUG_CORE is not set
++# CONFIG_I2C_DEBUG_ALGO is not set
++# CONFIG_I2C_DEBUG_BUS is not set
++CONFIG_SPI=y
++# CONFIG_SPI_DEBUG is not set
++CONFIG_SPI_MASTER=y
++
++#
++# SPI Master Controller Drivers
++#
++# CONFIG_SPI_ALTERA is not set
++CONFIG_SPI_BITBANG=y
++# CONFIG_SPI_GPIO is not set
++CONFIG_SPI_IMX=y
++# CONFIG_SPI_FSL_SPI is not set
++# CONFIG_SPI_OC_TINY is not set
++# CONFIG_SPI_PXA2XX is not set
++# CONFIG_SPI_PXA2XX_PCI is not set
++# CONFIG_SPI_SC18IS602 is not set
++# CONFIG_SPI_TOPCLIFF_PCH is not set
++# CONFIG_SPI_XCOMM is not set
++# CONFIG_SPI_XILINX is not set
++# CONFIG_SPI_DESIGNWARE is not set
++
++#
++# SPI Protocol Masters
++#
++# CONFIG_SPI_SPIDEV is not set
++# CONFIG_SPI_TLE62X0 is not set
++
++#
++# Qualcomm MSM SSBI bus support
++#
++# CONFIG_SSBI is not set
++# CONFIG_HSI is not set
++
++#
++# PPS support
++#
++CONFIG_PPS=y
++# CONFIG_PPS_DEBUG is not set
++
++#
++# PPS clients support
++#
++# CONFIG_PPS_CLIENT_KTIMER is not set
++# CONFIG_PPS_CLIENT_LDISC is not set
++# CONFIG_PPS_CLIENT_GPIO is not set
++
++#
++# PPS generators support
++#
++
++#
++# PTP clock support
++#
++CONFIG_PTP_1588_CLOCK=y
++
++#
++# Enable PHYLIB and NETWORK_PHY_TIMESTAMPING to see the additional clocks.
++#
++# CONFIG_PTP_1588_CLOCK_PCH is not set
++CONFIG_PINCTRL=y
++
++#
++# Pin controllers
++#
++CONFIG_PINMUX=y
++CONFIG_PINCONF=y
++# CONFIG_DEBUG_PINCTRL is not set
++CONFIG_PINCTRL_IMX=y
++CONFIG_PINCTRL_IMX51=y
++CONFIG_PINCTRL_IMX53=y
++CONFIG_PINCTRL_IMX6Q=y
++CONFIG_PINCTRL_IMX6SL=y
++CONFIG_PINCTRL_VF610=y
++# CONFIG_PINCTRL_SINGLE is not set
++# CONFIG_PINCTRL_EXYNOS is not set
++# CONFIG_PINCTRL_EXYNOS5440 is not set
++CONFIG_ARCH_HAVE_CUSTOM_GPIO_H=y
++CONFIG_ARCH_REQUIRE_GPIOLIB=y
++CONFIG_GPIO_DEVRES=y
++CONFIG_GPIOLIB=y
++CONFIG_OF_GPIO=y
++# CONFIG_DEBUG_GPIO is not set
++CONFIG_GPIO_SYSFS=y
++CONFIG_GPIO_GENERIC=y
++# CONFIG_GPIO_DA9052 is not set
++
++#
++# Memory mapped GPIO drivers:
++#
++# CONFIG_GPIO_GENERIC_PLATFORM is not set
++# CONFIG_GPIO_EM is not set
++CONFIG_GPIO_MXC=y
++# CONFIG_GPIO_RCAR is not set
++# CONFIG_GPIO_TS5500 is not set
++# CONFIG_GPIO_VX855 is not set
++# CONFIG_GPIO_GRGPIO is not set
++
++#
++# I2C GPIO expanders:
++#
++# CONFIG_GPIO_MAX7300 is not set
++# CONFIG_GPIO_MAX732X is not set
++# CONFIG_GPIO_PCA953X_IRQ is not set
++# CONFIG_GPIO_PCF857X is not set
++# CONFIG_GPIO_SX150X is not set
++# CONFIG_GPIO_ADP5588 is not set
++# CONFIG_GPIO_ADNP is not set
++
++#
++# PCI GPIO expanders:
++#
++# CONFIG_GPIO_BT8XX is not set
++# CONFIG_GPIO_AMD8111 is not set
++# CONFIG_GPIO_ML_IOH is not set
++# CONFIG_GPIO_RDC321X is not set
++
++#
++# SPI GPIO expanders:
++#
++# CONFIG_GPIO_MAX7301 is not set
++# CONFIG_GPIO_MCP23S08 is not set
++# CONFIG_GPIO_MC33880 is not set
++# CONFIG_GPIO_74X164 is not set
++
++#
++# AC97 GPIO expanders:
++#
++
++#
++# MODULbus GPIO expanders:
++#
++
++#
++# USB GPIO expanders:
++#
++# CONFIG_W1 is not set
++CONFIG_POWER_SUPPLY=y
++# CONFIG_POWER_SUPPLY_DEBUG is not set
++# CONFIG_PDA_POWER is not set
++# CONFIG_TEST_POWER is not set
++# CONFIG_BATTERY_DS2780 is not set
++# CONFIG_BATTERY_DS2781 is not set
++# CONFIG_BATTERY_DS2782 is not set
++# CONFIG_BATTERY_SBS is not set
++# CONFIG_BATTERY_BQ27x00 is not set
++# CONFIG_BATTERY_DA9052 is not set
++# CONFIG_BATTERY_MAX17040 is not set
++# CONFIG_BATTERY_MAX17042 is not set
++# CONFIG_CHARGER_ISP1704 is not set
++# CONFIG_CHARGER_MAX8903 is not set
++# CONFIG_CHARGER_LP8727 is not set
++# CONFIG_CHARGER_GPIO is not set
++# CONFIG_CHARGER_MANAGER is not set
++# CONFIG_CHARGER_BQ2415X is not set
++# CONFIG_CHARGER_SMB347 is not set
++# CONFIG_BATTERY_GOLDFISH is not set
++CONFIG_IMX6_USB_CHARGER=y
++# CONFIG_POWER_RESET is not set
++# CONFIG_POWER_RESET_RESTART is not set
++# CONFIG_POWER_AVS is not set
++CONFIG_HWMON=y
++# CONFIG_HWMON_VID is not set
++# CONFIG_HWMON_DEBUG_CHIP is not set
++
++#
++# Native drivers
++#
++# CONFIG_SENSORS_AD7314 is not set
++# CONFIG_SENSORS_AD7414 is not set
++# CONFIG_SENSORS_AD7418 is not set
++# CONFIG_SENSORS_ADCXX is not set
++# CONFIG_SENSORS_ADM1021 is not set
++# CONFIG_SENSORS_ADM1025 is not set
++# CONFIG_SENSORS_ADM1026 is not set
++# CONFIG_SENSORS_ADM1029 is not set
++# CONFIG_SENSORS_ADM1031 is not set
++# CONFIG_SENSORS_ADM9240 is not set
++# CONFIG_SENSORS_ADT7310 is not set
++# CONFIG_SENSORS_ADT7410 is not set
++# CONFIG_SENSORS_ADT7411 is not set
++# CONFIG_SENSORS_ADT7462 is not set
++# CONFIG_SENSORS_ADT7470 is not set
++# CONFIG_SENSORS_ADT7475 is not set
++# CONFIG_SENSORS_ASC7621 is not set
++# CONFIG_SENSORS_ATXP1 is not set
++# CONFIG_SENSORS_DS620 is not set
++# CONFIG_SENSORS_DS1621 is not set
++# CONFIG_SENSORS_DA9052_ADC is not set
++# CONFIG_SENSORS_I5K_AMB is not set
++# CONFIG_SENSORS_F71805F is not set
++# CONFIG_SENSORS_F71882FG is not set
++# CONFIG_SENSORS_F75375S is not set
++# CONFIG_SENSORS_G760A is not set
++# CONFIG_SENSORS_GL518SM is not set
++# CONFIG_SENSORS_GL520SM is not set
++# CONFIG_SENSORS_GPIO_FAN is not set
++# CONFIG_SENSORS_HIH6130 is not set
++# CONFIG_SENSORS_IT87 is not set
++# CONFIG_SENSORS_JC42 is not set
++# CONFIG_SENSORS_LINEAGE is not set
++# CONFIG_SENSORS_LM63 is not set
++# CONFIG_SENSORS_LM70 is not set
++# CONFIG_SENSORS_LM73 is not set
++# CONFIG_SENSORS_LM75 is not set
++# CONFIG_SENSORS_LM77 is not set
++# CONFIG_SENSORS_LM78 is not set
++# CONFIG_SENSORS_LM80 is not set
++# CONFIG_SENSORS_LM83 is not set
++# CONFIG_SENSORS_LM85 is not set
++# CONFIG_SENSORS_LM87 is not set
++# CONFIG_SENSORS_LM90 is not set
++# CONFIG_SENSORS_LM92 is not set
++# CONFIG_SENSORS_LM93 is not set
++# CONFIG_SENSORS_LTC4151 is not set
++# CONFIG_SENSORS_LTC4215 is not set
++# CONFIG_SENSORS_LTC4245 is not set
++# CONFIG_SENSORS_LTC4261 is not set
++# CONFIG_SENSORS_LM95234 is not set
++# CONFIG_SENSORS_LM95241 is not set
++# CONFIG_SENSORS_LM95245 is not set
++# CONFIG_SENSORS_MAX1111 is not set
++# CONFIG_SENSORS_MAX16065 is not set
++# CONFIG_SENSORS_MAX1619 is not set
++# CONFIG_SENSORS_MAX1668 is not set
++CONFIG_SENSORS_MAX17135=y
++# CONFIG_SENSORS_MAX197 is not set
++# CONFIG_SENSORS_MAX6639 is not set
++# CONFIG_SENSORS_MAX6642 is not set
++# CONFIG_SENSORS_MAX6650 is not set
++# CONFIG_SENSORS_MAX6697 is not set
++# CONFIG_SENSORS_MCP3021 is not set
++# CONFIG_SENSORS_NCT6775 is not set
++# CONFIG_SENSORS_PC87360 is not set
++# CONFIG_SENSORS_PC87427 is not set
++# CONFIG_SENSORS_PCF8591 is not set
++# CONFIG_PMBUS is not set
++# CONFIG_SENSORS_SHT15 is not set
++# CONFIG_SENSORS_SHT21 is not set
++# CONFIG_SENSORS_SIS5595 is not set
++# CONFIG_SENSORS_SMM665 is not set
++# CONFIG_SENSORS_DME1737 is not set
++# CONFIG_SENSORS_EMC1403 is not set
++# CONFIG_SENSORS_EMC2103 is not set
++# CONFIG_SENSORS_EMC6W201 is not set
++# CONFIG_SENSORS_SMSC47M1 is not set
++# CONFIG_SENSORS_SMSC47M192 is not set
++# CONFIG_SENSORS_SMSC47B397 is not set
++# CONFIG_SENSORS_SCH56XX_COMMON is not set
++# CONFIG_SENSORS_SCH5627 is not set
++# CONFIG_SENSORS_SCH5636 is not set
++# CONFIG_SENSORS_ADS1015 is not set
++# CONFIG_SENSORS_ADS7828 is not set
++# CONFIG_SENSORS_ADS7871 is not set
++# CONFIG_SENSORS_AMC6821 is not set
++# CONFIG_SENSORS_INA209 is not set
++# CONFIG_SENSORS_INA2XX is not set
++# CONFIG_SENSORS_THMC50 is not set
++# CONFIG_SENSORS_TMP102 is not set
++# CONFIG_SENSORS_TMP401 is not set
++# CONFIG_SENSORS_TMP421 is not set
++# CONFIG_SENSORS_VIA686A is not set
++# CONFIG_SENSORS_VT1211 is not set
++# CONFIG_SENSORS_VT8231 is not set
++# CONFIG_SENSORS_W83781D is not set
++# CONFIG_SENSORS_W83791D is not set
++# CONFIG_SENSORS_W83792D is not set
++# CONFIG_SENSORS_W83793 is not set
++# CONFIG_SENSORS_W83795 is not set
++# CONFIG_SENSORS_W83L785TS is not set
++# CONFIG_SENSORS_W83L786NG is not set
++# CONFIG_SENSORS_W83627HF is not set
++# CONFIG_SENSORS_W83627EHF is not set
++# CONFIG_SENSORS_MC13783_ADC is not set
++CONFIG_SENSORS_MAG3110=y
++CONFIG_MXC_MMA8451=y
++CONFIG_THERMAL=y
++CONFIG_THERMAL_HWMON=y
++CONFIG_THERMAL_DEFAULT_GOV_STEP_WISE=y
++# CONFIG_THERMAL_DEFAULT_GOV_FAIR_SHARE is not set
++# CONFIG_THERMAL_DEFAULT_GOV_USER_SPACE is not set
++# CONFIG_THERMAL_GOV_FAIR_SHARE is not set
++CONFIG_THERMAL_GOV_STEP_WISE=y
++# CONFIG_THERMAL_GOV_USER_SPACE is not set
++CONFIG_CPU_THERMAL=y
++# CONFIG_THERMAL_EMULATION is not set
++CONFIG_IMX_THERMAL=y
++CONFIG_DEVICE_THERMAL=y
++CONFIG_WATCHDOG=y
++# CONFIG_WATCHDOG_CORE is not set
++# CONFIG_WATCHDOG_NOWAYOUT is not set
++
++#
++# Watchdog Device Drivers
++#
++# CONFIG_SOFT_WATCHDOG is not set
++# CONFIG_DA9052_WATCHDOG is not set
++# CONFIG_DW_WATCHDOG is not set
++# CONFIG_MPCORE_WATCHDOG is not set
++# CONFIG_MAX63XX_WATCHDOG is not set
++CONFIG_IMX2_WDT=y
++# CONFIG_ALIM7101_WDT is not set
++# CONFIG_I6300ESB_WDT is not set
++
++#
++# PCI-based Watchdog Cards
++#
++# CONFIG_PCIPCWATCHDOG is not set
++# CONFIG_WDTPCI is not set
++
++#
++# USB-based Watchdog Cards
++#
++# CONFIG_USBPCWATCHDOG is not set
++CONFIG_SSB_POSSIBLE=y
++
++#
++# Sonics Silicon Backplane
++#
++# CONFIG_SSB is not set
++CONFIG_BCMA_POSSIBLE=y
++
++#
++# Broadcom specific AMBA
++#
++# CONFIG_BCMA is not set
++
++#
++# Multifunction device drivers
++#
++CONFIG_MFD_CORE=y
++# CONFIG_MFD_AS3711 is not set
++# CONFIG_PMIC_ADP5520 is not set
++# CONFIG_MFD_AAT2870_CORE is not set
++# CONFIG_MFD_CROS_EC is not set
++# CONFIG_MFD_ASIC3 is not set
++# CONFIG_PMIC_DA903X is not set
++CONFIG_PMIC_DA9052=y
++# CONFIG_MFD_DA9052_SPI is not set
++CONFIG_MFD_DA9052_I2C=y
++# CONFIG_MFD_DA9055 is not set
++CONFIG_MFD_MXC_HDMI=y
++CONFIG_MFD_MC13783=y
++CONFIG_MFD_MC13XXX=y
++CONFIG_MFD_MC13XXX_SPI=y
++CONFIG_MFD_MC13XXX_I2C=y
++# CONFIG_HTC_EGPIO is not set
++# CONFIG_HTC_PASIC3 is not set
++# CONFIG_HTC_I2CPLD is not set
++# CONFIG_LPC_ICH is not set
++# CONFIG_LPC_SCH is not set
++# CONFIG_MFD_JANZ_CMODIO is not set
++# CONFIG_MFD_88PM800 is not set
++# CONFIG_MFD_88PM805 is not set
++# CONFIG_MFD_88PM860X is not set
++CONFIG_MFD_MAX17135=y
++# CONFIG_MFD_MAX77686 is not set
++# CONFIG_MFD_MAX77693 is not set
++# CONFIG_MFD_MAX8907 is not set
++# CONFIG_MFD_MAX8925 is not set
++# CONFIG_MFD_MAX8997 is not set
++# CONFIG_MFD_MAX8998 is not set
++# CONFIG_EZX_PCAP is not set
++# CONFIG_MFD_VIPERBOARD is not set
++# CONFIG_MFD_RETU is not set
++# CONFIG_MFD_PCF50633 is not set
++# CONFIG_MFD_RDC321X is not set
++# CONFIG_MFD_RTSX_PCI is not set
++# CONFIG_MFD_RC5T583 is not set
++# CONFIG_MFD_SEC_CORE is not set
++CONFIG_MFD_SI476X_CORE=y
++# CONFIG_MFD_SM501 is not set
++# CONFIG_MFD_SMSC is not set
++# CONFIG_ABX500_CORE is not set
++# CONFIG_MFD_STMPE is not set
++CONFIG_MFD_SYSCON=y
++# CONFIG_MFD_TI_AM335X_TSCADC is not set
++# CONFIG_MFD_LP8788 is not set
++# CONFIG_MFD_PALMAS is not set
++# CONFIG_TPS6105X is not set
++# CONFIG_TPS65010 is not set
++# CONFIG_TPS6507X is not set
++# CONFIG_MFD_TPS65090 is not set
++# CONFIG_MFD_TPS65217 is not set
++# CONFIG_MFD_TPS6586X is not set
++# CONFIG_MFD_TPS65910 is not set
++# CONFIG_MFD_TPS65912 is not set
++# CONFIG_MFD_TPS65912_I2C is not set
++# CONFIG_MFD_TPS65912_SPI is not set
++# CONFIG_MFD_TPS80031 is not set
++# CONFIG_TWL4030_CORE is not set
++# CONFIG_TWL6040_CORE is not set
++# CONFIG_MFD_WL1273_CORE is not set
++# CONFIG_MFD_LM3533 is not set
++# CONFIG_MFD_TIMBERDALE is not set
++# CONFIG_MFD_TC3589X is not set
++# CONFIG_MFD_TMIO is not set
++# CONFIG_MFD_T7L66XB is not set
++# CONFIG_MFD_TC6387XB is not set
++# CONFIG_MFD_TC6393XB is not set
++# CONFIG_MFD_VX855 is not set
++# CONFIG_MFD_ARIZONA_I2C is not set
++# CONFIG_MFD_ARIZONA_SPI is not set
++# CONFIG_MFD_WM8400 is not set
++# CONFIG_MFD_WM831X_I2C is not set
++# CONFIG_MFD_WM831X_SPI is not set
++# CONFIG_MFD_WM8350_I2C is not set
++# CONFIG_MFD_WM8994 is not set
++CONFIG_REGULATOR=y
++# CONFIG_REGULATOR_DEBUG is not set
++# CONFIG_REGULATOR_DUMMY is not set
++CONFIG_REGULATOR_FIXED_VOLTAGE=y
++# CONFIG_REGULATOR_VIRTUAL_CONSUMER is not set
++# CONFIG_REGULATOR_USERSPACE_CONSUMER is not set
++# CONFIG_REGULATOR_GPIO is not set
++# CONFIG_REGULATOR_AD5398 is not set
++CONFIG_REGULATOR_DA9052=y
++# CONFIG_REGULATOR_FAN53555 is not set
++CONFIG_REGULATOR_ANATOP=y
++CONFIG_REGULATOR_MC13XXX_CORE=y
++CONFIG_REGULATOR_MC13783=y
++CONFIG_REGULATOR_MC13892=y
++# CONFIG_REGULATOR_ISL6271A is not set
++# CONFIG_REGULATOR_MAX1586 is not set
++CONFIG_REGULATOR_MAX17135=y
++# CONFIG_REGULATOR_MAX8649 is not set
++# CONFIG_REGULATOR_MAX8660 is not set
++# CONFIG_REGULATOR_MAX8952 is not set
++# CONFIG_REGULATOR_MAX8973 is not set
++# CONFIG_REGULATOR_LP3971 is not set
++# CONFIG_REGULATOR_LP3972 is not set
++# CONFIG_REGULATOR_LP872X is not set
++# CONFIG_REGULATOR_LP8755 is not set
++CONFIG_REGULATOR_PFUZE100=y
++# CONFIG_REGULATOR_TPS51632 is not set
++# CONFIG_REGULATOR_TPS62360 is not set
++# CONFIG_REGULATOR_TPS65023 is not set
++# CONFIG_REGULATOR_TPS6507X is not set
++# CONFIG_REGULATOR_TPS6524X is not set
++CONFIG_MEDIA_SUPPORT=y
++
++#
++# Multimedia core support
++#
++CONFIG_MEDIA_CAMERA_SUPPORT=y
++# CONFIG_MEDIA_ANALOG_TV_SUPPORT is not set
++# CONFIG_MEDIA_DIGITAL_TV_SUPPORT is not set
++CONFIG_MEDIA_RADIO_SUPPORT=y
++# CONFIG_MEDIA_RC_SUPPORT is not set
++# CONFIG_MEDIA_CONTROLLER is not set
++CONFIG_VIDEO_DEV=y
++CONFIG_VIDEO_V4L2=y
++# CONFIG_VIDEO_ADV_DEBUG is not set
++# CONFIG_VIDEO_FIXED_MINOR_RANGES is not set
++CONFIG_VIDEOBUF_GEN=y
++CONFIG_VIDEOBUF_DMA_CONTIG=y
++CONFIG_VIDEOBUF2_CORE=y
++CONFIG_VIDEOBUF2_MEMOPS=y
++CONFIG_VIDEOBUF2_DMA_CONTIG=y
++CONFIG_VIDEOBUF2_VMALLOC=m
++CONFIG_VIDEO_V4L2_INT_DEVICE=y
++# CONFIG_TTPCI_EEPROM is not set
++
++#
++# Media drivers
++#
++CONFIG_MEDIA_USB_SUPPORT=y
++
++#
++# Webcam devices
++#
++CONFIG_USB_VIDEO_CLASS=m
++CONFIG_USB_VIDEO_CLASS_INPUT_EVDEV=y
++CONFIG_USB_GSPCA=m
++# CONFIG_USB_M5602 is not set
++# CONFIG_USB_STV06XX is not set
++# CONFIG_USB_GL860 is not set
++# CONFIG_USB_GSPCA_BENQ is not set
++# CONFIG_USB_GSPCA_CONEX is not set
++# CONFIG_USB_GSPCA_CPIA1 is not set
++# CONFIG_USB_GSPCA_ETOMS is not set
++# CONFIG_USB_GSPCA_FINEPIX is not set
++# CONFIG_USB_GSPCA_JEILINJ is not set
++# CONFIG_USB_GSPCA_JL2005BCD is not set
++# CONFIG_USB_GSPCA_KINECT is not set
++# CONFIG_USB_GSPCA_KONICA is not set
++# CONFIG_USB_GSPCA_MARS is not set
++# CONFIG_USB_GSPCA_MR97310A is not set
++# CONFIG_USB_GSPCA_NW80X is not set
++# CONFIG_USB_GSPCA_OV519 is not set
++# CONFIG_USB_GSPCA_OV534 is not set
++# CONFIG_USB_GSPCA_OV534_9 is not set
++# CONFIG_USB_GSPCA_PAC207 is not set
++# CONFIG_USB_GSPCA_PAC7302 is not set
++# CONFIG_USB_GSPCA_PAC7311 is not set
++# CONFIG_USB_GSPCA_SE401 is not set
++# CONFIG_USB_GSPCA_SN9C2028 is not set
++# CONFIG_USB_GSPCA_SN9C20X is not set
++# CONFIG_USB_GSPCA_SONIXB is not set
++# CONFIG_USB_GSPCA_SONIXJ is not set
++# CONFIG_USB_GSPCA_SPCA500 is not set
++# CONFIG_USB_GSPCA_SPCA501 is not set
++# CONFIG_USB_GSPCA_SPCA505 is not set
++# CONFIG_USB_GSPCA_SPCA506 is not set
++# CONFIG_USB_GSPCA_SPCA508 is not set
++# CONFIG_USB_GSPCA_SPCA561 is not set
++# CONFIG_USB_GSPCA_SPCA1528 is not set
++# CONFIG_USB_GSPCA_SQ905 is not set
++# CONFIG_USB_GSPCA_SQ905C is not set
++# CONFIG_USB_GSPCA_SQ930X is not set
++# CONFIG_USB_GSPCA_STK014 is not set
++# CONFIG_USB_GSPCA_STV0680 is not set
++# CONFIG_USB_GSPCA_SUNPLUS is not set
++# CONFIG_USB_GSPCA_T613 is not set
++# CONFIG_USB_GSPCA_TOPRO is not set
++# CONFIG_USB_GSPCA_TV8532 is not set
++# CONFIG_USB_GSPCA_VC032X is not set
++# CONFIG_USB_GSPCA_VICAM is not set
++# CONFIG_USB_GSPCA_XIRLINK_CIT is not set
++# CONFIG_USB_GSPCA_ZC3XX is not set
++# CONFIG_USB_PWC is not set
++# CONFIG_VIDEO_CPIA2 is not set
++# CONFIG_USB_ZR364XX is not set
++# CONFIG_USB_STKWEBCAM is not set
++# CONFIG_USB_S2255 is not set
++# CONFIG_USB_SN9C102 is not set
++
++#
++# Webcam, TV (analog/digital) USB devices
++#
++# CONFIG_VIDEO_EM28XX is not set
++# CONFIG_MEDIA_PCI_SUPPORT is not set
++CONFIG_V4L_PLATFORM_DRIVERS=y
++# CONFIG_VIDEO_CAFE_CCIC is not set
++# CONFIG_VIDEO_TIMBERDALE is not set
++CONFIG_VIDEO_MXC_OUTPUT=y
++CONFIG_VIDEO_MXC_CAPTURE=m
++
++#
++# MXC Camera/V4L2 PRP Features support
++#
++CONFIG_VIDEO_MXC_IPU_CAMERA=y
++CONFIG_VIDEO_MXC_CSI_CAMERA=m
++CONFIG_MXC_CAMERA_OV5640=m
++CONFIG_MXC_CAMERA_OV5642=m
++CONFIG_MXC_CAMERA_OV5640_MIPI=m
++CONFIG_MXC_TVIN_ADV7180=m
++CONFIG_MXC_IPU_DEVICE_QUEUE_SDC=m
++CONFIG_MXC_IPU_PRP_ENC=m
++CONFIG_MXC_IPU_CSI_ENC=m
++CONFIG_VIDEO_MXC_IPU_OUTPUT=y
++CONFIG_VIDEO_MXC_PXP_V4L2=y
++CONFIG_SOC_CAMERA=y
++# CONFIG_SOC_CAMERA_PLATFORM is not set
++CONFIG_MX3_VIDEO=y
++CONFIG_VIDEO_MX3=y
++# CONFIG_VIDEO_SH_MOBILE_CSI2 is not set
++# CONFIG_VIDEO_SH_MOBILE_CEU is not set
++# CONFIG_V4L_MEM2MEM_DRIVERS is not set
++# CONFIG_V4L_TEST_DRIVERS is not set
++
++#
++# Supported MMC/SDIO adapters
++#
++CONFIG_RADIO_ADAPTERS=y
++# CONFIG_RADIO_SI470X is not set
++CONFIG_RADIO_SI476X=y
++# CONFIG_USB_MR800 is not set
++# CONFIG_USB_DSBR is not set
++# CONFIG_RADIO_MAXIRADIO is not set
++# CONFIG_RADIO_SHARK is not set
++# CONFIG_RADIO_SHARK2 is not set
++# CONFIG_I2C_SI4713 is not set
++# CONFIG_RADIO_SI4713 is not set
++# CONFIG_USB_KEENE is not set
++# CONFIG_USB_MA901 is not set
++# CONFIG_RADIO_TEA5764 is not set
++# CONFIG_RADIO_SAA7706H is not set
++# CONFIG_RADIO_TEF6862 is not set
++# CONFIG_RADIO_WL1273 is not set
++
++#
++# Texas Instruments WL128x FM driver (ST based)
++#
++# CONFIG_CYPRESS_FIRMWARE is not set
++
++#
++# Media ancillary drivers (tuners, sensors, i2c, frontends)
++#
++CONFIG_MEDIA_SUBDRV_AUTOSELECT=y
++CONFIG_MEDIA_ATTACH=y
++
++#
++# Audio decoders, processors and mixers
++#
++
++#
++# RDS decoders
++#
++
++#
++# Video decoders
++#
++
++#
++# Video and audio decoders
++#
++
++#
++# Video encoders
++#
++
++#
++# Camera sensor devices
++#
++
++#
++# Flash devices
++#
++
++#
++# Video improvement chips
++#
++
++#
++# Miscelaneous helper chips
++#
++
++#
++# Sensors used on soc_camera driver
++#
++
++#
++# soc_camera sensor drivers
++#
++# CONFIG_SOC_CAMERA_IMX074 is not set
++# CONFIG_SOC_CAMERA_MT9M001 is not set
++# CONFIG_SOC_CAMERA_MT9M111 is not set
++# CONFIG_SOC_CAMERA_MT9T031 is not set
++# CONFIG_SOC_CAMERA_MT9T112 is not set
++# CONFIG_SOC_CAMERA_MT9V022 is not set
++CONFIG_SOC_CAMERA_OV2640=y
++# CONFIG_SOC_CAMERA_OV5642 is not set
++# CONFIG_SOC_CAMERA_OV6650 is not set
++# CONFIG_SOC_CAMERA_OV772X is not set
++# CONFIG_SOC_CAMERA_OV9640 is not set
++# CONFIG_SOC_CAMERA_OV9740 is not set
++# CONFIG_SOC_CAMERA_RJ54N1 is not set
++# CONFIG_SOC_CAMERA_TW9910 is not set
++CONFIG_MEDIA_TUNER=y
++CONFIG_MEDIA_TUNER_SIMPLE=y
++CONFIG_MEDIA_TUNER_TDA8290=y
++CONFIG_MEDIA_TUNER_TDA827X=y
++CONFIG_MEDIA_TUNER_TDA18271=y
++CONFIG_MEDIA_TUNER_TDA9887=y
++CONFIG_MEDIA_TUNER_TEA5761=y
++CONFIG_MEDIA_TUNER_TEA5767=y
++CONFIG_MEDIA_TUNER_MT20XX=y
++CONFIG_MEDIA_TUNER_XC2028=y
++CONFIG_MEDIA_TUNER_XC5000=y
++CONFIG_MEDIA_TUNER_XC4000=y
++CONFIG_MEDIA_TUNER_MC44S803=y
++
++#
++# Tools to develop new frontends
++#
++# CONFIG_DVB_DUMMY_FE is not set
++
++#
++# Graphics support
++#
++CONFIG_VGA_ARB=y
++CONFIG_VGA_ARB_MAX_GPUS=16
++CONFIG_DRM=y
++# CONFIG_DRM_TDFX is not set
++# CONFIG_DRM_R128 is not set
++# CONFIG_DRM_RADEON is not set
++# CONFIG_DRM_NOUVEAU is not set
++# CONFIG_DRM_MGA is not set
++# CONFIG_DRM_VIA is not set
++# CONFIG_DRM_SAVAGE is not set
++CONFIG_DRM_VIVANTE=y
++# CONFIG_DRM_EXYNOS is not set
++# CONFIG_DRM_VMWGFX is not set
++# CONFIG_DRM_UDL is not set
++# CONFIG_DRM_AST is not set
++# CONFIG_DRM_MGAG200 is not set
++# CONFIG_DRM_CIRRUS_QEMU is not set
++# CONFIG_DRM_TILCDC is not set
++# CONFIG_DRM_QXL is not set
++# CONFIG_TEGRA_HOST1X is not set
++# CONFIG_VGASTATE is not set
++# CONFIG_VIDEO_OUTPUT_CONTROL is not set
++CONFIG_VIDEOMODE_HELPERS=y
++CONFIG_HDMI=y
++CONFIG_FB=y
++# CONFIG_FIRMWARE_EDID is not set
++# CONFIG_FB_DDC is not set
++# CONFIG_FB_BOOT_VESA_SUPPORT is not set
++CONFIG_FB_CFB_FILLRECT=y
++CONFIG_FB_CFB_COPYAREA=y
++CONFIG_FB_CFB_IMAGEBLIT=y
++# CONFIG_FB_CFB_REV_PIXELS_IN_BYTE is not set
++# CONFIG_FB_SYS_FILLRECT is not set
++# CONFIG_FB_SYS_COPYAREA is not set
++# CONFIG_FB_SYS_IMAGEBLIT is not set
++# CONFIG_FB_FOREIGN_ENDIAN is not set
++# CONFIG_FB_SYS_FOPS is not set
++CONFIG_FB_DEFERRED_IO=y
++# CONFIG_FB_SVGALIB is not set
++# CONFIG_FB_MACMODES is not set
++# CONFIG_FB_BACKLIGHT is not set
++CONFIG_FB_MODE_HELPERS=y
++# CONFIG_FB_TILEBLITTING is not set
++
++#
++# Frame buffer hardware drivers
++#
++# CONFIG_FB_CIRRUS is not set
++# CONFIG_FB_PM2 is not set
++# CONFIG_FB_CYBER2000 is not set
++# CONFIG_FB_ASILIANT is not set
++# CONFIG_FB_IMSTT is not set
++# CONFIG_FB_UVESA is not set
++# CONFIG_FB_S1D13XXX is not set
++# CONFIG_FB_NVIDIA is not set
++# CONFIG_FB_RIVA is not set
++# CONFIG_FB_I740 is not set
++# CONFIG_FB_MATROX is not set
++# CONFIG_FB_RADEON is not set
++# CONFIG_FB_ATY128 is not set
++# CONFIG_FB_ATY is not set
++# CONFIG_FB_S3 is not set
++# CONFIG_FB_SAVAGE is not set
++# CONFIG_FB_SIS is not set
++# CONFIG_FB_NEOMAGIC is not set
++# CONFIG_FB_KYRO is not set
++# CONFIG_FB_3DFX is not set
++# CONFIG_FB_VOODOO1 is not set
++# CONFIG_FB_VT8623 is not set
++# CONFIG_FB_TRIDENT is not set
++# CONFIG_FB_ARK is not set
++# CONFIG_FB_PM3 is not set
++# CONFIG_FB_CARMINE is not set
++# CONFIG_FB_TMIO is not set
++# CONFIG_FB_SMSCUFX is not set
++# CONFIG_FB_UDL is not set
++# CONFIG_FB_GOLDFISH is not set
++# CONFIG_FB_VIRTUAL is not set
++# CONFIG_FB_METRONOME is not set
++# CONFIG_FB_MB862XX is not set
++CONFIG_FB_MX3=y
++# CONFIG_FB_BROADSHEET is not set
++# CONFIG_FB_AUO_K190X is not set
++CONFIG_FB_MXS=y
++# CONFIG_FB_SIMPLE is not set
++# CONFIG_EXYNOS_VIDEO is not set
++CONFIG_BACKLIGHT_LCD_SUPPORT=y
++CONFIG_LCD_CLASS_DEVICE=y
++CONFIG_LCD_L4F00242T03=y
++# CONFIG_LCD_LMS283GF05 is not set
++# CONFIG_LCD_LTV350QV is not set
++# CONFIG_LCD_ILI922X is not set
++# CONFIG_LCD_ILI9320 is not set
++# CONFIG_LCD_TDO24M is not set
++# CONFIG_LCD_VGG2432A4 is not set
++CONFIG_LCD_PLATFORM=y
++# CONFIG_LCD_S6E63M0 is not set
++# CONFIG_LCD_LD9040 is not set
++# CONFIG_LCD_AMS369FG06 is not set
++# CONFIG_LCD_LMS501KF03 is not set
++# CONFIG_LCD_HX8357 is not set
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
++CONFIG_BACKLIGHT_GENERIC=y
++CONFIG_BACKLIGHT_PWM=y
++# CONFIG_BACKLIGHT_DA9052 is not set
++# CONFIG_BACKLIGHT_ADP8860 is not set
++# CONFIG_BACKLIGHT_ADP8870 is not set
++# CONFIG_BACKLIGHT_LM3630 is not set
++# CONFIG_BACKLIGHT_LM3639 is not set
++# CONFIG_BACKLIGHT_LP855X is not set
++CONFIG_FB_MXC=y
++CONFIG_FB_MXC_SYNC_PANEL=y
++CONFIG_FB_MXC_LDB=y
++CONFIG_FB_MXC_MIPI_DSI=y
++CONFIG_FB_MXC_TRULY_WVGA_SYNC_PANEL=y
++CONFIG_FB_MXC_HDMI=y
++CONFIG_FB_MXC_EDID=y
++CONFIG_FB_MXC_EINK_PANEL=y
++# CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE is not set
++CONFIG_FB_MXS_SII902X=y
++# CONFIG_HANNSTAR_CABC is not set
++
++#
++# Console display driver support
++#
++CONFIG_DUMMY_CONSOLE=y
++CONFIG_FRAMEBUFFER_CONSOLE=y
++CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
++# CONFIG_FRAMEBUFFER_CONSOLE_ROTATION is not set
++CONFIG_FONTS=y
++CONFIG_FONT_8x8=y
++CONFIG_FONT_8x16=y
++# CONFIG_FONT_6x11 is not set
++# CONFIG_FONT_7x14 is not set
++# CONFIG_FONT_PEARL_8x8 is not set
++# CONFIG_FONT_ACORN_8x8 is not set
++# CONFIG_FONT_MINI_4x6 is not set
++# CONFIG_FONT_SUN8x16 is not set
++# CONFIG_FONT_SUN12x22 is not set
++# CONFIG_FONT_10x18 is not set
++CONFIG_LOGO=y
++CONFIG_LOGO_LINUX_MONO=y
++CONFIG_LOGO_LINUX_VGA16=y
++CONFIG_LOGO_LINUX_CLUT224=y
++# CONFIG_FB_SSD1307 is not set
++CONFIG_SOUND=y
++# CONFIG_SOUND_OSS_CORE is not set
++CONFIG_SND=y
++CONFIG_SND_TIMER=y
++CONFIG_SND_PCM=y
++CONFIG_SND_HWDEP=m
++CONFIG_SND_RAWMIDI=m
++CONFIG_SND_COMPRESS_OFFLOAD=y
++CONFIG_SND_JACK=y
++# CONFIG_SND_SEQUENCER is not set
++# CONFIG_SND_MIXER_OSS is not set
++# CONFIG_SND_PCM_OSS is not set
++# CONFIG_SND_HRTIMER is not set
++# CONFIG_SND_DYNAMIC_MINORS is not set
++CONFIG_SND_SUPPORT_OLD_API=y
++CONFIG_SND_VERBOSE_PROCFS=y
++# CONFIG_SND_VERBOSE_PRINTK is not set
++# CONFIG_SND_DEBUG is not set
++# CONFIG_SND_RAWMIDI_SEQ is not set
++# CONFIG_SND_OPL3_LIB_SEQ is not set
++# CONFIG_SND_OPL4_LIB_SEQ is not set
++# CONFIG_SND_SBAWE_SEQ is not set
++# CONFIG_SND_EMU10K1_SEQ is not set
++CONFIG_SND_DRIVERS=y
++# CONFIG_SND_DUMMY is not set
++# CONFIG_SND_ALOOP is not set
++# CONFIG_SND_MTPAV is not set
++# CONFIG_SND_SERIAL_U16550 is not set
++# CONFIG_SND_MPU401 is not set
++CONFIG_SND_PCI=y
++# CONFIG_SND_AD1889 is not set
++# CONFIG_SND_ALS300 is not set
++# CONFIG_SND_ALI5451 is not set
++# CONFIG_SND_ATIIXP is not set
++# CONFIG_SND_ATIIXP_MODEM is not set
++# CONFIG_SND_AU8810 is not set
++# CONFIG_SND_AU8820 is not set
++# CONFIG_SND_AU8830 is not set
++# CONFIG_SND_AW2 is not set
++# CONFIG_SND_AZT3328 is not set
++# CONFIG_SND_BT87X is not set
++# CONFIG_SND_CA0106 is not set
++# CONFIG_SND_CMIPCI is not set
++# CONFIG_SND_OXYGEN is not set
++# CONFIG_SND_CS4281 is not set
++# CONFIG_SND_CS46XX is not set
++# CONFIG_SND_CS5535AUDIO is not set
++# CONFIG_SND_CTXFI is not set
++# CONFIG_SND_DARLA20 is not set
++# CONFIG_SND_GINA20 is not set
++# CONFIG_SND_LAYLA20 is not set
++# CONFIG_SND_DARLA24 is not set
++# CONFIG_SND_GINA24 is not set
++# CONFIG_SND_LAYLA24 is not set
++# CONFIG_SND_MONA is not set
++# CONFIG_SND_MIA is not set
++# CONFIG_SND_ECHO3G is not set
++# CONFIG_SND_INDIGO is not set
++# CONFIG_SND_INDIGOIO is not set
++# CONFIG_SND_INDIGODJ is not set
++# CONFIG_SND_INDIGOIOX is not set
++# CONFIG_SND_INDIGODJX is not set
++# CONFIG_SND_EMU10K1 is not set
++# CONFIG_SND_EMU10K1X is not set
++# CONFIG_SND_ENS1370 is not set
++# CONFIG_SND_ENS1371 is not set
++# CONFIG_SND_ES1938 is not set
++# CONFIG_SND_ES1968 is not set
++# CONFIG_SND_FM801 is not set
++# CONFIG_SND_HDA_INTEL is not set
++# CONFIG_SND_HDSP is not set
++# CONFIG_SND_HDSPM is not set
++# CONFIG_SND_ICE1712 is not set
++# CONFIG_SND_ICE1724 is not set
++# CONFIG_SND_INTEL8X0 is not set
++# CONFIG_SND_INTEL8X0M is not set
++# CONFIG_SND_KORG1212 is not set
++# CONFIG_SND_LOLA is not set
++# CONFIG_SND_LX6464ES is not set
++# CONFIG_SND_MAESTRO3 is not set
++# CONFIG_SND_MIXART is not set
++# CONFIG_SND_NM256 is not set
++# CONFIG_SND_PCXHR is not set
++# CONFIG_SND_RIPTIDE is not set
++# CONFIG_SND_RME32 is not set
++# CONFIG_SND_RME96 is not set
++# CONFIG_SND_RME9652 is not set
++# CONFIG_SND_SONICVIBES is not set
++# CONFIG_SND_TRIDENT is not set
++# CONFIG_SND_VIA82XX is not set
++# CONFIG_SND_VIA82XX_MODEM is not set
++# CONFIG_SND_VIRTUOSO is not set
++# CONFIG_SND_VX222 is not set
++# CONFIG_SND_YMFPCI is not set
++CONFIG_SND_ARM=y
++CONFIG_SND_SPI=y
++CONFIG_SND_USB=y
++CONFIG_SND_USB_AUDIO=m
++# CONFIG_SND_USB_UA101 is not set
++# CONFIG_SND_USB_CAIAQ is not set
++# CONFIG_SND_USB_6FIRE is not set
++CONFIG_SND_SOC=y
++CONFIG_SND_SOC_DMAENGINE_PCM=y
++CONFIG_SND_SOC_GENERIC_DMAENGINE_PCM=y
++# CONFIG_SND_ATMEL_SOC is not set
++# CONFIG_SND_DESIGNWARE_I2S is not set
++CONFIG_SND_SOC_FSL_SSI=y
++CONFIG_SND_SOC_FSL_ASRC=y
++CONFIG_SND_SOC_FSL_ESAI=y
++CONFIG_SND_SOC_FSL_SPDIF=y
++CONFIG_SND_SOC_FSL_HDMI=y
++CONFIG_SND_SOC_FSL_UTILS=y
++CONFIG_SND_IMX_SOC=y
++CONFIG_SND_SOC_IMX_SSI=y
++CONFIG_SND_SOC_IMX_PCM_FIQ=y
++CONFIG_SND_SOC_IMX_PCM_DMA=y
++CONFIG_SND_SOC_IMX_HDMI_DMA=y
++CONFIG_SND_SOC_IMX_AUDMUX=y
++CONFIG_SND_SOC_EUKREA_TLV320=y
++CONFIG_SND_SOC_IMX_CS42888=y
++# CONFIG_SND_SOC_IMX_WM8962 is not set
++CONFIG_SND_SOC_IMX_TLV320AIC3X=y
++CONFIG_SND_SOC_IMX_SGTL5000=y
++CONFIG_SND_SOC_IMX_SPDIF=y
++CONFIG_SND_SOC_IMX_MC13783=y
++CONFIG_SND_SOC_IMX_HDMI=y
++CONFIG_SND_SOC_IMX_SI476X=y
++CONFIG_SND_SOC_I2C_AND_SPI=y
++# CONFIG_SND_SOC_ALL_CODECS is not set
++CONFIG_SND_SOC_CS42888=y
++CONFIG_SND_SOC_OMAP_HDMI_CODEC=y
++CONFIG_SND_SOC_SGTL5000=y
++CONFIG_SND_SOC_SI476X=y
++CONFIG_SND_SOC_SPDIF=y
++CONFIG_SND_SOC_TLV320AIC23=y
++CONFIG_SND_SOC_TLV320AIC3X=y
++CONFIG_SND_SOC_WM8962=y
++CONFIG_SND_SOC_MC13783=y
++# CONFIG_SND_SIMPLE_CARD is not set
++# CONFIG_SOUND_PRIME is not set
++
++#
++# HID support
++#
++CONFIG_HID=y
++# CONFIG_HID_BATTERY_STRENGTH is not set
++# CONFIG_HIDRAW is not set
++# CONFIG_UHID is not set
++CONFIG_HID_GENERIC=y
++
++#
++# Special HID drivers
++#
++# CONFIG_HID_A4TECH is not set
++# CONFIG_HID_ACRUX is not set
++# CONFIG_HID_APPLE is not set
++# CONFIG_HID_APPLEIR is not set
++# CONFIG_HID_AUREAL is not set
++# CONFIG_HID_BELKIN is not set
++# CONFIG_HID_CHERRY is not set
++# CONFIG_HID_CHICONY is not set
++# CONFIG_HID_PRODIKEYS is not set
++# CONFIG_HID_CYPRESS is not set
++# CONFIG_HID_DRAGONRISE is not set
++# CONFIG_HID_EMS_FF is not set
++# CONFIG_HID_ELECOM is not set
++# CONFIG_HID_EZKEY is not set
++# CONFIG_HID_HOLTEK is not set
++# CONFIG_HID_KEYTOUCH is not set
++# CONFIG_HID_KYE is not set
++# CONFIG_HID_UCLOGIC is not set
++# CONFIG_HID_WALTOP is not set
++# CONFIG_HID_GYRATION is not set
++# CONFIG_HID_ICADE is not set
++# CONFIG_HID_TWINHAN is not set
++# CONFIG_HID_KENSINGTON is not set
++# CONFIG_HID_LCPOWER is not set
++# CONFIG_HID_LENOVO_TPKBD is not set
++# CONFIG_HID_LOGITECH is not set
++# CONFIG_HID_MAGICMOUSE is not set
++# CONFIG_HID_MICROSOFT is not set
++# CONFIG_HID_MONTEREY is not set
++# CONFIG_HID_MULTITOUCH is not set
++# CONFIG_HID_NTRIG is not set
++# CONFIG_HID_ORTEK is not set
++# CONFIG_HID_PANTHERLORD is not set
++# CONFIG_HID_PETALYNX is not set
++# CONFIG_HID_PICOLCD is not set
++# CONFIG_HID_PRIMAX is not set
++# CONFIG_HID_PS3REMOTE is not set
++# CONFIG_HID_ROCCAT is not set
++# CONFIG_HID_SAITEK is not set
++# CONFIG_HID_SAMSUNG is not set
++# CONFIG_HID_SONY is not set
++# CONFIG_HID_SPEEDLINK is not set
++# CONFIG_HID_STEELSERIES is not set
++# CONFIG_HID_SUNPLUS is not set
++# CONFIG_HID_GREENASIA is not set
++# CONFIG_HID_SMARTJOYPLUS is not set
++# CONFIG_HID_TIVO is not set
++# CONFIG_HID_TOPSEED is not set
++# CONFIG_HID_THINGM is not set
++# CONFIG_HID_THRUSTMASTER is not set
++# CONFIG_HID_WACOM is not set
++# CONFIG_HID_WIIMOTE is not set
++# CONFIG_HID_ZEROPLUS is not set
++# CONFIG_HID_ZYDACRON is not set
++# CONFIG_HID_SENSOR_HUB is not set
++
++#
++# USB HID support
++#
++CONFIG_USB_HID=y
++# CONFIG_HID_PID is not set
++# CONFIG_USB_HIDDEV is not set
++
++#
++# I2C HID support
++#
++# CONFIG_I2C_HID is not set
++CONFIG_USB_ARCH_HAS_OHCI=y
++CONFIG_USB_ARCH_HAS_EHCI=y
++CONFIG_USB_ARCH_HAS_XHCI=y
++CONFIG_USB_SUPPORT=y
++CONFIG_USB_COMMON=y
++CONFIG_USB_ARCH_HAS_HCD=y
++CONFIG_USB=y
++# CONFIG_USB_DEBUG is not set
++# CONFIG_USB_ANNOUNCE_NEW_DEVICES is not set
++
++#
++# Miscellaneous USB options
++#
++CONFIG_USB_DEFAULT_PERSIST=y
++# CONFIG_USB_DYNAMIC_MINORS is not set
++# CONFIG_USB_OTG is not set
++# CONFIG_USB_OTG_WHITELIST is not set
++# CONFIG_USB_OTG_BLACKLIST_HUB is not set
++# CONFIG_USB_MON is not set
++# CONFIG_USB_WUSB_CBAF is not set
++
++#
++# USB Host Controller Drivers
++#
++# CONFIG_USB_C67X00_HCD is not set
++# CONFIG_USB_XHCI_HCD is not set
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_EHCI_ROOT_HUB_TT=y
++CONFIG_USB_EHCI_TT_NEWSCHED=y
++CONFIG_USB_EHCI_PCI=y
++# CONFIG_USB_EHCI_MXC is not set
++# CONFIG_USB_EHCI_HCD_PLATFORM is not set
++# CONFIG_USB_OXU210HP_HCD is not set
++# CONFIG_USB_ISP116X_HCD is not set
++# CONFIG_USB_ISP1760_HCD is not set
++# CONFIG_USB_ISP1362_HCD is not set
++# CONFIG_USB_OHCI_HCD is not set
++# CONFIG_USB_UHCI_HCD is not set
++# CONFIG_USB_SL811_HCD is not set
++# CONFIG_USB_R8A66597_HCD is not set
++# CONFIG_USB_IMX21_HCD is not set
++# CONFIG_USB_MUSB_HDRC is not set
++# CONFIG_USB_RENESAS_USBHS is not set
++
++#
++# USB Device Class drivers
++#
++# CONFIG_USB_ACM is not set
++# CONFIG_USB_PRINTER is not set
++# CONFIG_USB_WDM is not set
++# CONFIG_USB_TMC is not set
++
++#
++# NOTE: USB_STORAGE depends on SCSI but BLK_DEV_SD may
++#
++
++#
++# also be needed; see USB_STORAGE Help for more info
++#
++CONFIG_USB_STORAGE=y
++# CONFIG_USB_STORAGE_DEBUG is not set
++# CONFIG_USB_STORAGE_REALTEK is not set
++# CONFIG_USB_STORAGE_DATAFAB is not set
++# CONFIG_USB_STORAGE_FREECOM is not set
++# CONFIG_USB_STORAGE_ISD200 is not set
++# CONFIG_USB_STORAGE_USBAT is not set
++# CONFIG_USB_STORAGE_SDDR09 is not set
++# CONFIG_USB_STORAGE_SDDR55 is not set
++# CONFIG_USB_STORAGE_JUMPSHOT is not set
++# CONFIG_USB_STORAGE_ALAUDA is not set
++# CONFIG_USB_STORAGE_ONETOUCH is not set
++# CONFIG_USB_STORAGE_KARMA is not set
++# CONFIG_USB_STORAGE_CYPRESS_ATACB is not set
++# CONFIG_USB_STORAGE_ENE_UB6250 is not set
++
++#
++# USB Imaging devices
++#
++# CONFIG_USB_MDC800 is not set
++# CONFIG_USB_MICROTEK is not set
++# CONFIG_USB_DWC3 is not set
++CONFIG_USB_CHIPIDEA=y
++CONFIG_USB_CHIPIDEA_UDC=y
++CONFIG_USB_CHIPIDEA_HOST=y
++# CONFIG_USB_CHIPIDEA_DEBUG is not set
++
++#
++# USB port drivers
++#
++# CONFIG_USB_SERIAL is not set
++
++#
++# USB Miscellaneous drivers
++#
++# CONFIG_USB_EMI62 is not set
++# CONFIG_USB_EMI26 is not set
++# CONFIG_USB_ADUTUX is not set
++# CONFIG_USB_SEVSEG is not set
++# CONFIG_USB_RIO500 is not set
++# CONFIG_USB_LEGOTOWER is not set
++# CONFIG_USB_LCD is not set
++# CONFIG_USB_LED is not set
++# CONFIG_USB_CYPRESS_CY7C63 is not set
++# CONFIG_USB_CYTHERM is not set
++# CONFIG_USB_IDMOUSE is not set
++# CONFIG_USB_FTDI_ELAN is not set
++# CONFIG_USB_APPLEDISPLAY is not set
++# CONFIG_USB_SISUSBVGA is not set
++# CONFIG_USB_LD is not set
++# CONFIG_USB_TRANCEVIBRATOR is not set
++# CONFIG_USB_IOWARRIOR is not set
++# CONFIG_USB_TEST is not set
++# CONFIG_USB_ISIGHTFW is not set
++# CONFIG_USB_YUREX is not set
++# CONFIG_USB_EZUSB_FX2 is not set
++# CONFIG_USB_HSIC_USB3503 is not set
++CONFIG_USB_PHY=y
++# CONFIG_NOP_USB_XCEIV is not set
++# CONFIG_OMAP_CONTROL_USB is not set
++# CONFIG_OMAP_USB3 is not set
++# CONFIG_SAMSUNG_USBPHY is not set
++# CONFIG_SAMSUNG_USB2PHY is not set
++# CONFIG_SAMSUNG_USB3PHY is not set
++# CONFIG_USB_GPIO_VBUS is not set
++# CONFIG_USB_ISP1301 is not set
++CONFIG_USB_MXS_PHY=y
++# CONFIG_USB_RCAR_PHY is not set
++# CONFIG_USB_ULPI is not set
++CONFIG_USB_GADGET=y
++# CONFIG_USB_GADGET_DEBUG is not set
++# CONFIG_USB_GADGET_DEBUG_FILES is not set
++# CONFIG_USB_GADGET_DEBUG_FS is not set
++CONFIG_USB_GADGET_VBUS_DRAW=2
++CONFIG_USB_GADGET_STORAGE_NUM_BUFFERS=2
++
++#
++# USB Peripheral Controller
++#
++# CONFIG_USB_FSL_USB2 is not set
++# CONFIG_USB_FUSB300 is not set
++# CONFIG_USB_R8A66597 is not set
++# CONFIG_USB_PXA27X is not set
++# CONFIG_USB_MV_UDC is not set
++# CONFIG_USB_MV_U3D is not set
++# CONFIG_USB_M66592 is not set
++# CONFIG_USB_AMD5536UDC is not set
++# CONFIG_USB_NET2272 is not set
++# CONFIG_USB_NET2280 is not set
++# CONFIG_USB_GOKU is not set
++# CONFIG_USB_EG20T is not set
++# CONFIG_USB_DUMMY_HCD is not set
++CONFIG_USB_LIBCOMPOSITE=m
++CONFIG_USB_F_ACM=m
++CONFIG_USB_F_SS_LB=m
++CONFIG_USB_U_SERIAL=m
++CONFIG_USB_F_SERIAL=m
++CONFIG_USB_F_OBEX=m
++CONFIG_USB_ZERO=m
++# CONFIG_USB_AUDIO is not set
++CONFIG_USB_ETH=m
++CONFIG_USB_ETH_RNDIS=y
++# CONFIG_USB_ETH_EEM is not set
++# CONFIG_USB_G_NCM is not set
++CONFIG_USB_GADGETFS=m
++CONFIG_USB_FUNCTIONFS=m
++# CONFIG_USB_FUNCTIONFS_ETH is not set
++# CONFIG_USB_FUNCTIONFS_RNDIS is not set
++CONFIG_USB_FUNCTIONFS_GENERIC=y
++CONFIG_USB_MASS_STORAGE=m
++# CONFIG_FSL_UTP is not set
++CONFIG_USB_G_SERIAL=m
++# CONFIG_USB_MIDI_GADGET is not set
++# CONFIG_USB_G_PRINTER is not set
++CONFIG_USB_CDC_COMPOSITE=m
++CONFIG_USB_G_ACM_MS=m
++# CONFIG_USB_G_MULTI is not set
++CONFIG_USB_G_HID=m
++# CONFIG_USB_G_DBGP is not set
++CONFIG_USB_G_WEBCAM=m
++# CONFIG_UWB is not set
++CONFIG_MMC=y
++# CONFIG_MMC_DEBUG is not set
++CONFIG_MMC_UNSAFE_RESUME=y
++# CONFIG_MMC_CLKGATE is not set
++
++#
++# MMC/SD/SDIO Card Drivers
++#
++CONFIG_MMC_BLOCK=y
++CONFIG_MMC_BLOCK_MINORS=8
++CONFIG_MMC_BLOCK_BOUNCE=y
++# CONFIG_SDIO_UART is not set
++# CONFIG_MMC_TEST is not set
++
++#
++# MMC/SD/SDIO Host Controller Drivers
++#
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_IO_ACCESSORS=y
++# CONFIG_MMC_SDHCI_PCI is not set
++CONFIG_MMC_SDHCI_PLTFM=y
++CONFIG_MMC_SDHCI_ESDHC_IMX=y
++# CONFIG_MMC_SDHCI_PXAV3 is not set
++# CONFIG_MMC_SDHCI_PXAV2 is not set
++# CONFIG_MMC_MXC is not set
++# CONFIG_MMC_TIFM_SD is not set
++# CONFIG_MMC_SPI is not set
++# CONFIG_MMC_CB710 is not set
++# CONFIG_MMC_VIA_SDMMC is not set
++# CONFIG_MMC_DW is not set
++# CONFIG_MMC_VUB300 is not set
++# CONFIG_MMC_USHC is not set
++# CONFIG_MEMSTICK is not set
++
++#
++# MXC support drivers
++#
++CONFIG_MXC_IPU=y
++
++#
++# MXC Vivante GPU support
++#
++CONFIG_MXC_GPU_VIV=y
++CONFIG_MXC_IPU_V3=y
++
++#
++# MXC Asynchronous Sample Rate Converter support
++#
++CONFIG_MXC_ASRC=y
++
++#
++# MXC VPU(Video Processing Unit) support
++#
++CONFIG_MXC_VPU=y
++# CONFIG_MXC_VPU_DEBUG is not set
++# CONFIG_MX6_VPU_352M is not set
++
++#
++# MXC HDMI CEC (Consumer Electronics Control) support
++#
++# CONFIG_MXC_HDMI_CEC is not set
++
++#
++# MXC MIPI Support
++#
++CONFIG_MXC_MIPI_CSI2=y
++
++#
++# MXC Media Local Bus Driver
++#
++CONFIG_MXC_MLB=y
++CONFIG_MXC_MLB150=m
++CONFIG_LEDS_GPIO_REGISTER=y
++CONFIG_NEW_LEDS=y
++CONFIG_LEDS_CLASS=y
++
++#
++# LED drivers
++#
++# CONFIG_LEDS_LM3530 is not set
++# CONFIG_LEDS_LM3642 is not set
++# CONFIG_LEDS_PCA9532 is not set
++# CONFIG_LEDS_GPIO is not set
++# CONFIG_LEDS_LP3944 is not set
++# CONFIG_LEDS_LP5521 is not set
++# CONFIG_LEDS_LP5523 is not set
++# CONFIG_LEDS_LP5562 is not set
++# CONFIG_LEDS_PCA955X is not set
++# CONFIG_LEDS_PCA9633 is not set
++# CONFIG_LEDS_DA9052 is not set
++# CONFIG_LEDS_DAC124S085 is not set
++# CONFIG_LEDS_PWM is not set
++# CONFIG_LEDS_REGULATOR is not set
++# CONFIG_LEDS_BD2802 is not set
++# CONFIG_LEDS_LT3593 is not set
++# CONFIG_LEDS_MC13783 is not set
++# CONFIG_LEDS_RENESAS_TPU is not set
++# CONFIG_LEDS_TCA6507 is not set
++# CONFIG_LEDS_LM355x is not set
++# CONFIG_LEDS_OT200 is not set
++# CONFIG_LEDS_BLINKM is not set
++
++#
++# LED Triggers
++#
++CONFIG_LEDS_TRIGGERS=y
++# CONFIG_LEDS_TRIGGER_TIMER is not set
++# CONFIG_LEDS_TRIGGER_ONESHOT is not set
++# CONFIG_LEDS_TRIGGER_HEARTBEAT is not set
++# CONFIG_LEDS_TRIGGER_BACKLIGHT is not set
++# CONFIG_LEDS_TRIGGER_CPU is not set
++# CONFIG_LEDS_TRIGGER_GPIO is not set
++# CONFIG_LEDS_TRIGGER_DEFAULT_ON is not set
++
++#
++# iptables trigger is under Netfilter config (LED target)
++#
++# CONFIG_LEDS_TRIGGER_TRANSIENT is not set
++# CONFIG_LEDS_TRIGGER_CAMERA is not set
++# CONFIG_ACCESSIBILITY is not set
++# CONFIG_INFINIBAND is not set
++# CONFIG_EDAC is not set
++CONFIG_RTC_LIB=y
++CONFIG_RTC_CLASS=y
++CONFIG_RTC_HCTOSYS=y
++CONFIG_RTC_SYSTOHC=y
++CONFIG_RTC_HCTOSYS_DEVICE="rtc0"
++# CONFIG_RTC_DEBUG is not set
++
++#
++# RTC interfaces
++#
++CONFIG_RTC_INTF_SYSFS=y
++CONFIG_RTC_INTF_PROC=y
++CONFIG_RTC_INTF_DEV=y
++CONFIG_RTC_INTF_DEV_UIE_EMUL=y
++# CONFIG_RTC_DRV_TEST is not set
++
++#
++# I2C RTC drivers
++#
++# CONFIG_RTC_DRV_DS1307 is not set
++# CONFIG_RTC_DRV_DS1374 is not set
++# CONFIG_RTC_DRV_DS1672 is not set
++# CONFIG_RTC_DRV_DS3232 is not set
++# CONFIG_RTC_DRV_MAX6900 is not set
++# CONFIG_RTC_DRV_RS5C372 is not set
++# CONFIG_RTC_DRV_ISL1208 is not set
++# CONFIG_RTC_DRV_ISL12022 is not set
++# CONFIG_RTC_DRV_X1205 is not set
++# CONFIG_RTC_DRV_PCF8523 is not set
++# CONFIG_RTC_DRV_PCF8563 is not set
++# CONFIG_RTC_DRV_PCF8583 is not set
++# CONFIG_RTC_DRV_M41T80 is not set
++# CONFIG_RTC_DRV_BQ32K is not set
++# CONFIG_RTC_DRV_S35390A is not set
++# CONFIG_RTC_DRV_FM3130 is not set
++# CONFIG_RTC_DRV_RX8581 is not set
++# CONFIG_RTC_DRV_RX8025 is not set
++# CONFIG_RTC_DRV_EM3027 is not set
++# CONFIG_RTC_DRV_RV3029C2 is not set
++
++#
++# SPI RTC drivers
++#
++# CONFIG_RTC_DRV_M41T93 is not set
++# CONFIG_RTC_DRV_M41T94 is not set
++# CONFIG_RTC_DRV_DS1305 is not set
++# CONFIG_RTC_DRV_DS1390 is not set
++# CONFIG_RTC_DRV_MAX6902 is not set
++# CONFIG_RTC_DRV_R9701 is not set
++# CONFIG_RTC_DRV_RS5C348 is not set
++# CONFIG_RTC_DRV_DS3234 is not set
++# CONFIG_RTC_DRV_PCF2123 is not set
++# CONFIG_RTC_DRV_RX4581 is not set
++
++#
++# Platform RTC drivers
++#
++# CONFIG_RTC_DRV_CMOS is not set
++# CONFIG_RTC_DRV_DS1286 is not set
++# CONFIG_RTC_DRV_DS1511 is not set
++# CONFIG_RTC_DRV_DS1553 is not set
++# CONFIG_RTC_DRV_DS1742 is not set
++# CONFIG_RTC_DRV_DA9052 is not set
++# CONFIG_RTC_DRV_STK17TA8 is not set
++# CONFIG_RTC_DRV_M48T86 is not set
++# CONFIG_RTC_DRV_M48T35 is not set
++# CONFIG_RTC_DRV_M48T59 is not set
++# CONFIG_RTC_DRV_MSM6242 is not set
++# CONFIG_RTC_DRV_BQ4802 is not set
++# CONFIG_RTC_DRV_RP5C01 is not set
++# CONFIG_RTC_DRV_V3020 is not set
++# CONFIG_RTC_DRV_DS2404 is not set
++
++#
++# on-CPU RTC drivers
++#
++# CONFIG_RTC_DRV_IMXDI is not set
++CONFIG_RTC_DRV_MC13XXX=y
++CONFIG_RTC_DRV_MXC=y
++CONFIG_RTC_DRV_SNVS=y
++
++#
++# HID Sensor RTC drivers
++#
++# CONFIG_RTC_DRV_HID_SENSOR_TIME is not set
++CONFIG_DMADEVICES=y
++# CONFIG_DMADEVICES_DEBUG is not set
++
++#
++# DMA Devices
++#
++# CONFIG_DW_DMAC is not set
++CONFIG_MX3_IPU=y
++CONFIG_MX3_IPU_IRQS=4
++CONFIG_MXC_PXP_V2=y
++CONFIG_MXC_PXP_CLIENT_DEVICE=y
++# CONFIG_TIMB_DMA is not set
++CONFIG_IMX_SDMA=y
++# CONFIG_IMX_DMA is not set
++CONFIG_MXS_DMA=y
++CONFIG_DMA_ENGINE=y
++CONFIG_DMA_OF=y
++
++#
++# DMA Clients
++#
++# CONFIG_NET_DMA is not set
++# CONFIG_ASYNC_TX_DMA is not set
++# CONFIG_DMATEST is not set
++# CONFIG_AUXDISPLAY is not set
++# CONFIG_UIO is not set
++# CONFIG_VIRT_DRIVERS is not set
++
++#
++# Virtio drivers
++#
++# CONFIG_VIRTIO_PCI is not set
++# CONFIG_VIRTIO_MMIO is not set
++
++#
++# Microsoft Hyper-V guest support
++#
++CONFIG_STAGING=y
++# CONFIG_ET131X is not set
++# CONFIG_USBIP_CORE is not set
++# CONFIG_W35UND is not set
++# CONFIG_PRISM2_USB is not set
++# CONFIG_ECHO is not set
++# CONFIG_COMEDI is not set
++# CONFIG_ASUS_OLED is not set
++# CONFIG_R8187SE is not set
++# CONFIG_RTL8192U is not set
++# CONFIG_RTLLIB is not set
++# CONFIG_R8712U is not set
++# CONFIG_RTS5139 is not set
++# CONFIG_TRANZPORT is not set
++# CONFIG_IDE_PHISON is not set
++# CONFIG_LINE6_USB is not set
++# CONFIG_VT6655 is not set
++# CONFIG_VT6656 is not set
++# CONFIG_DX_SEP is not set
++# CONFIG_ZSMALLOC is not set
++# CONFIG_FB_SM7XX is not set
++# CONFIG_CRYSTALHD is not set
++# CONFIG_FB_XGI is not set
++# CONFIG_USB_ENESTORAGE is not set
++# CONFIG_BCM_WIMAX is not set
++# CONFIG_FT1000 is not set
++
++#
++# Speakup console speech
++#
++# CONFIG_SPEAKUP is not set
++# CONFIG_TOUCHSCREEN_CLEARPAD_TM1217 is not set
++# CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4 is not set
++# CONFIG_STAGING_MEDIA is not set
++
++#
++# Android
++#
++# CONFIG_ANDROID is not set
++# CONFIG_USB_WPAN_HCD is not set
++# CONFIG_WIMAX_GDM72XX is not set
++# CONFIG_CSR_WIFI is not set
++CONFIG_NET_VENDOR_SILICOM=y
++# CONFIG_SBYPASS is not set
++# CONFIG_BPCTL is not set
++# CONFIG_CED1401 is not set
++# CONFIG_DRM_IMX is not set
++# CONFIG_DGRP is not set
++CONFIG_CLKDEV_LOOKUP=y
++CONFIG_HAVE_CLK_PREPARE=y
++CONFIG_COMMON_CLK=y
++
++#
++# Common Clock Framework
++#
++CONFIG_COMMON_CLK_DEBUG=y
++# CONFIG_COMMON_CLK_SI5351 is not set
++
++#
++# Hardware Spinlock drivers
++#
++CONFIG_CLKSRC_OF=y
++CONFIG_CLKSRC_MMIO=y
++CONFIG_VF_PIT_TIMER=y
++# CONFIG_MAILBOX is not set
++# CONFIG_IOMMU_SUPPORT is not set
++
++#
++# Remoteproc drivers
++#
++# CONFIG_STE_MODEM_RPROC is not set
++
++#
++# Rpmsg drivers
++#
++# CONFIG_PM_DEVFREQ is not set
++# CONFIG_EXTCON is not set
++# CONFIG_MEMORY is not set
++# CONFIG_IIO is not set
++# CONFIG_VME_BUS is not set
++CONFIG_PWM=y
++CONFIG_PWM_IMX=y
++CONFIG_IRQCHIP=y
++CONFIG_ARM_GIC=y
++# CONFIG_IPACK_BUS is not set
++CONFIG_ARCH_HAS_RESET_CONTROLLER=y
++CONFIG_RESET_CONTROLLER=y
++CONFIG_RESET_GPIO=y
++
++#
++# File systems
++#
++CONFIG_DCACHE_WORD_ACCESS=y
++CONFIG_EXT2_FS=y
++CONFIG_EXT2_FS_XATTR=y
++CONFIG_EXT2_FS_POSIX_ACL=y
++CONFIG_EXT2_FS_SECURITY=y
++# CONFIG_EXT2_FS_XIP is not set
++CONFIG_EXT3_FS=y
++CONFIG_EXT3_DEFAULTS_TO_ORDERED=y
++CONFIG_EXT3_FS_XATTR=y
++CONFIG_EXT3_FS_POSIX_ACL=y
++CONFIG_EXT3_FS_SECURITY=y
++CONFIG_EXT4_FS=y
++CONFIG_EXT4_FS_POSIX_ACL=y
++CONFIG_EXT4_FS_SECURITY=y
++# CONFIG_EXT4_DEBUG is not set
++CONFIG_JBD=y
++# CONFIG_JBD_DEBUG is not set
++CONFIG_JBD2=y
++# CONFIG_JBD2_DEBUG is not set
++CONFIG_FS_MBCACHE=y
++# CONFIG_REISERFS_FS is not set
++# CONFIG_JFS_FS is not set
++# CONFIG_XFS_FS is not set
++# CONFIG_GFS2_FS is not set
++# CONFIG_OCFS2_FS is not set
++# CONFIG_BTRFS_FS is not set
++# CONFIG_NILFS2_FS is not set
++CONFIG_FS_POSIX_ACL=y
++CONFIG_FILE_LOCKING=y
++CONFIG_FSNOTIFY=y
++CONFIG_DNOTIFY=y
++CONFIG_INOTIFY_USER=y
++# CONFIG_FANOTIFY is not set
++CONFIG_QUOTA=y
++CONFIG_QUOTA_NETLINK_INTERFACE=y
++# CONFIG_PRINT_QUOTA_WARNING is not set
++# CONFIG_QUOTA_DEBUG is not set
++# CONFIG_QFMT_V1 is not set
++# CONFIG_QFMT_V2 is not set
++CONFIG_QUOTACTL=y
++CONFIG_AUTOFS4_FS=y
++CONFIG_FUSE_FS=y
++# CONFIG_CUSE is not set
++
++#
++# Caches
++#
++# CONFIG_FSCACHE is not set
++
++#
++# CD-ROM/DVD Filesystems
++#
++CONFIG_ISO9660_FS=m
++CONFIG_JOLIET=y
++CONFIG_ZISOFS=y
++CONFIG_UDF_FS=m
++CONFIG_UDF_NLS=y
++
++#
++# DOS/FAT/NT Filesystems
++#
++CONFIG_FAT_FS=y
++CONFIG_MSDOS_FS=m
++CONFIG_VFAT_FS=y
++CONFIG_FAT_DEFAULT_CODEPAGE=437
++CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
++# CONFIG_NTFS_FS is not set
++
++#
++# Pseudo filesystems
++#
++CONFIG_PROC_FS=y
++CONFIG_PROC_SYSCTL=y
++CONFIG_PROC_PAGE_MONITOR=y
++CONFIG_SYSFS=y
++CONFIG_TMPFS=y
++# CONFIG_TMPFS_POSIX_ACL is not set
++# CONFIG_TMPFS_XATTR is not set
++# CONFIG_HUGETLB_PAGE is not set
++CONFIG_CONFIGFS_FS=m
++CONFIG_MISC_FILESYSTEMS=y
++# CONFIG_ADFS_FS is not set
++# CONFIG_AFFS_FS is not set
++# CONFIG_ECRYPT_FS is not set
++# CONFIG_HFS_FS is not set
++# CONFIG_HFSPLUS_FS is not set
++# CONFIG_BEFS_FS is not set
++# CONFIG_BFS_FS is not set
++# CONFIG_EFS_FS is not set
++CONFIG_JFFS2_FS=y
++CONFIG_JFFS2_FS_DEBUG=0
++CONFIG_JFFS2_FS_WRITEBUFFER=y
++# CONFIG_JFFS2_FS_WBUF_VERIFY is not set
++# CONFIG_JFFS2_SUMMARY is not set
++# CONFIG_JFFS2_FS_XATTR is not set
++# CONFIG_JFFS2_COMPRESSION_OPTIONS is not set
++CONFIG_JFFS2_ZLIB=y
++# CONFIG_JFFS2_LZO is not set
++CONFIG_JFFS2_RTIME=y
++# CONFIG_JFFS2_RUBIN is not set
++CONFIG_UBIFS_FS=y
++# CONFIG_UBIFS_FS_ADVANCED_COMPR is not set
++CONFIG_UBIFS_FS_LZO=y
++CONFIG_UBIFS_FS_ZLIB=y
++# CONFIG_LOGFS is not set
++# CONFIG_CRAMFS is not set
++# CONFIG_SQUASHFS is not set
++# CONFIG_VXFS_FS is not set
++# CONFIG_MINIX_FS is not set
++# CONFIG_OMFS_FS is not set
++# CONFIG_HPFS_FS is not set
++# CONFIG_QNX4FS_FS is not set
++# CONFIG_QNX6FS_FS is not set
++# CONFIG_ROMFS_FS is not set
++# CONFIG_PSTORE is not set
++# CONFIG_SYSV_FS is not set
++# CONFIG_UFS_FS is not set
++# CONFIG_F2FS_FS is not set
++CONFIG_NETWORK_FILESYSTEMS=y
++CONFIG_NFS_FS=y
++CONFIG_NFS_V2=y
++CONFIG_NFS_V3=y
++CONFIG_NFS_V3_ACL=y
++CONFIG_NFS_V4=y
++# CONFIG_NFS_SWAP is not set
++# CONFIG_NFS_V4_1 is not set
++CONFIG_ROOT_NFS=y
++# CONFIG_NFS_USE_LEGACY_DNS is not set
++CONFIG_NFS_USE_KERNEL_DNS=y
++# CONFIG_NFSD is not set
++CONFIG_LOCKD=y
++CONFIG_LOCKD_V4=y
++CONFIG_NFS_ACL_SUPPORT=y
++CONFIG_NFS_COMMON=y
++CONFIG_SUNRPC=y
++CONFIG_SUNRPC_GSS=y
++# CONFIG_SUNRPC_DEBUG is not set
++# CONFIG_CEPH_FS is not set
++# CONFIG_CIFS is not set
++# CONFIG_NCP_FS is not set
++# CONFIG_CODA_FS is not set
++# CONFIG_AFS_FS is not set
++CONFIG_NLS=y
++CONFIG_NLS_DEFAULT="cp437"
++CONFIG_NLS_CODEPAGE_437=y
++# CONFIG_NLS_CODEPAGE_737 is not set
++# CONFIG_NLS_CODEPAGE_775 is not set
++# CONFIG_NLS_CODEPAGE_850 is not set
++# CONFIG_NLS_CODEPAGE_852 is not set
++# CONFIG_NLS_CODEPAGE_855 is not set
++# CONFIG_NLS_CODEPAGE_857 is not set
++# CONFIG_NLS_CODEPAGE_860 is not set
++# CONFIG_NLS_CODEPAGE_861 is not set
++# CONFIG_NLS_CODEPAGE_862 is not set
++# CONFIG_NLS_CODEPAGE_863 is not set
++# CONFIG_NLS_CODEPAGE_864 is not set
++# CONFIG_NLS_CODEPAGE_865 is not set
++# CONFIG_NLS_CODEPAGE_866 is not set
++# CONFIG_NLS_CODEPAGE_869 is not set
++# CONFIG_NLS_CODEPAGE_936 is not set
++# CONFIG_NLS_CODEPAGE_950 is not set
++# CONFIG_NLS_CODEPAGE_932 is not set
++# CONFIG_NLS_CODEPAGE_949 is not set
++# CONFIG_NLS_CODEPAGE_874 is not set
++# CONFIG_NLS_ISO8859_8 is not set
++# CONFIG_NLS_CODEPAGE_1250 is not set
++# CONFIG_NLS_CODEPAGE_1251 is not set
++CONFIG_NLS_ASCII=y
++CONFIG_NLS_ISO8859_1=y
++# CONFIG_NLS_ISO8859_2 is not set
++# CONFIG_NLS_ISO8859_3 is not set
++# CONFIG_NLS_ISO8859_4 is not set
++# CONFIG_NLS_ISO8859_5 is not set
++# CONFIG_NLS_ISO8859_6 is not set
++# CONFIG_NLS_ISO8859_7 is not set
++# CONFIG_NLS_ISO8859_9 is not set
++# CONFIG_NLS_ISO8859_13 is not set
++# CONFIG_NLS_ISO8859_14 is not set
++CONFIG_NLS_ISO8859_15=m
++# CONFIG_NLS_KOI8_R is not set
++# CONFIG_NLS_KOI8_U is not set
++# CONFIG_NLS_MAC_ROMAN is not set
++# CONFIG_NLS_MAC_CELTIC is not set
++# CONFIG_NLS_MAC_CENTEURO is not set
++# CONFIG_NLS_MAC_CROATIAN is not set
++# CONFIG_NLS_MAC_CYRILLIC is not set
++# CONFIG_NLS_MAC_GAELIC is not set
++# CONFIG_NLS_MAC_GREEK is not set
++# CONFIG_NLS_MAC_ICELAND is not set
++# CONFIG_NLS_MAC_INUIT is not set
++# CONFIG_NLS_MAC_ROMANIAN is not set
++# CONFIG_NLS_MAC_TURKISH is not set
++CONFIG_NLS_UTF8=y
++# CONFIG_DLM is not set
++
++#
++# Kernel hacking
++#
++# CONFIG_PRINTK_TIME is not set
++CONFIG_DEFAULT_MESSAGE_LOGLEVEL=4
++CONFIG_ENABLE_WARN_DEPRECATED=y
++CONFIG_ENABLE_MUST_CHECK=y
++CONFIG_FRAME_WARN=1024
++CONFIG_MAGIC_SYSRQ=y
++# CONFIG_STRIP_ASM_SYMS is not set
++# CONFIG_READABLE_ASM is not set
++# CONFIG_UNUSED_SYMBOLS is not set
++CONFIG_DEBUG_FS=y
++# CONFIG_HEADERS_CHECK is not set
++# CONFIG_DEBUG_SECTION_MISMATCH is not set
++CONFIG_DEBUG_KERNEL=y
++# CONFIG_DEBUG_SHIRQ is not set
++# CONFIG_LOCKUP_DETECTOR is not set
++# CONFIG_PANIC_ON_OOPS is not set
++CONFIG_PANIC_ON_OOPS_VALUE=0
++# CONFIG_DETECT_HUNG_TASK is not set
++# CONFIG_SCHED_DEBUG is not set
++# CONFIG_SCHEDSTATS is not set
++# CONFIG_TIMER_STATS is not set
++# CONFIG_DEBUG_OBJECTS is not set
++# CONFIG_SLUB_STATS is not set
++CONFIG_HAVE_DEBUG_KMEMLEAK=y
++# CONFIG_DEBUG_KMEMLEAK is not set
++# CONFIG_DEBUG_RT_MUTEXES is not set
++# CONFIG_RT_MUTEX_TESTER is not set
++# CONFIG_DEBUG_SPINLOCK is not set
++# CONFIG_DEBUG_MUTEXES is not set
++# CONFIG_DEBUG_LOCK_ALLOC is not set
++# CONFIG_PROVE_LOCKING is not set
++# CONFIG_LOCK_STAT is not set
++# CONFIG_DEBUG_ATOMIC_SLEEP is not set
++# CONFIG_DEBUG_LOCKING_API_SELFTESTS is not set
++# CONFIG_DEBUG_STACK_USAGE is not set
++# CONFIG_DEBUG_KOBJECT is not set
++# CONFIG_DEBUG_BUGVERBOSE is not set
++# CONFIG_DEBUG_INFO is not set
++# CONFIG_DEBUG_VM is not set
++# CONFIG_DEBUG_WRITECOUNT is not set
++# CONFIG_DEBUG_MEMORY_INIT is not set
++# CONFIG_DEBUG_LIST is not set
++# CONFIG_TEST_LIST_SORT is not set
++# CONFIG_DEBUG_SG is not set
++# CONFIG_DEBUG_NOTIFIERS is not set
++# CONFIG_DEBUG_CREDENTIALS is not set
++# CONFIG_BOOT_PRINTK_DELAY is not set
++
++#
++# RCU Debugging
++#
++# CONFIG_SPARSE_RCU_POINTER is not set
++# CONFIG_RCU_TORTURE_TEST is not set
++CONFIG_RCU_CPU_STALL_TIMEOUT=21
++# CONFIG_RCU_CPU_STALL_INFO is not set
++# CONFIG_RCU_TRACE is not set
++# CONFIG_BACKTRACE_SELF_TEST is not set
++# CONFIG_DEBUG_BLOCK_EXT_DEVT is not set
++# CONFIG_DEBUG_FORCE_WEAK_PER_CPU is not set
++# CONFIG_DEBUG_PER_CPU_MAPS is not set
++# CONFIG_LKDTM is not set
++# CONFIG_NOTIFIER_ERROR_INJECTION is not set
++# CONFIG_FAULT_INJECTION is not set
++# CONFIG_DEBUG_PAGEALLOC is not set
++CONFIG_HAVE_FUNCTION_TRACER=y
++CONFIG_HAVE_FUNCTION_GRAPH_TRACER=y
++CONFIG_HAVE_DYNAMIC_FTRACE=y
++CONFIG_HAVE_FTRACE_MCOUNT_RECORD=y
++CONFIG_HAVE_SYSCALL_TRACEPOINTS=y
++CONFIG_HAVE_C_RECORDMCOUNT=y
++CONFIG_TRACING_SUPPORT=y
++# CONFIG_FTRACE is not set
++# CONFIG_RBTREE_TEST is not set
++# CONFIG_INTERVAL_TREE_TEST is not set
++# CONFIG_DYNAMIC_DEBUG is not set
++# CONFIG_DMA_API_DEBUG is not set
++# CONFIG_ATOMIC64_SELFTEST is not set
++# CONFIG_SAMPLES is not set
++CONFIG_HAVE_ARCH_KGDB=y
++# CONFIG_KGDB is not set
++# CONFIG_TEST_STRING_HELPERS is not set
++# CONFIG_TEST_KSTRTOX is not set
++# CONFIG_STRICT_DEVMEM is not set
++CONFIG_ARM_UNWIND=y
++# CONFIG_DEBUG_USER is not set
++# CONFIG_DEBUG_LL is not set
++CONFIG_DEBUG_IMX_UART_PORT=1
++CONFIG_DEBUG_LL_INCLUDE="mach/debug-macro.S"
++CONFIG_UNCOMPRESS_INCLUDE="debug/uncompress.h"
++# CONFIG_PID_IN_CONTEXTIDR is not set
++
++#
++# Security options
++#
++CONFIG_KEYS=y
++# CONFIG_ENCRYPTED_KEYS is not set
++# CONFIG_KEYS_DEBUG_PROC_KEYS is not set
++# CONFIG_SECURITY_DMESG_RESTRICT is not set
++# CONFIG_SECURITY is not set
++CONFIG_SECURITYFS=y
++CONFIG_DEFAULT_SECURITY_DAC=y
++CONFIG_DEFAULT_SECURITY=""
++CONFIG_CRYPTO=y
++
++#
++# Crypto core or helper
++#
++CONFIG_CRYPTO_ALGAPI=y
++CONFIG_CRYPTO_ALGAPI2=y
++CONFIG_CRYPTO_AEAD=y
++CONFIG_CRYPTO_AEAD2=y
++CONFIG_CRYPTO_BLKCIPHER=y
++CONFIG_CRYPTO_BLKCIPHER2=y
++CONFIG_CRYPTO_HASH=y
++CONFIG_CRYPTO_HASH2=y
++CONFIG_CRYPTO_RNG=y
++CONFIG_CRYPTO_RNG2=y
++CONFIG_CRYPTO_PCOMP2=y
++CONFIG_CRYPTO_MANAGER=y
++CONFIG_CRYPTO_MANAGER2=y
++CONFIG_CRYPTO_USER=y
++CONFIG_CRYPTO_MANAGER_DISABLE_TESTS=y
++CONFIG_CRYPTO_GF128MUL=y
++CONFIG_CRYPTO_NULL=y
++# CONFIG_CRYPTO_PCRYPT is not set
++CONFIG_CRYPTO_WORKQUEUE=y
++# CONFIG_CRYPTO_CRYPTD is not set
++CONFIG_CRYPTO_AUTHENC=y
++# CONFIG_CRYPTO_TEST is not set
++
++#
++# Authenticated Encryption with Associated Data
++#
++CONFIG_CRYPTO_CCM=y
++CONFIG_CRYPTO_GCM=y
++CONFIG_CRYPTO_SEQIV=y
++
++#
++# Block modes
++#
++CONFIG_CRYPTO_CBC=y
++CONFIG_CRYPTO_CTR=y
++CONFIG_CRYPTO_CTS=y
++CONFIG_CRYPTO_ECB=y
++CONFIG_CRYPTO_LRW=y
++# CONFIG_CRYPTO_PCBC is not set
++# CONFIG_CRYPTO_XTS is not set
++
++#
++# Hash modes
++#
++# CONFIG_CRYPTO_CMAC is not set
++# CONFIG_CRYPTO_HMAC is not set
++# CONFIG_CRYPTO_XCBC is not set
++# CONFIG_CRYPTO_VMAC is not set
++
++#
++# Digest
++#
++CONFIG_CRYPTO_CRC32C=y
++# CONFIG_CRYPTO_CRC32 is not set
++CONFIG_CRYPTO_GHASH=y
++# CONFIG_CRYPTO_MD4 is not set
++# CONFIG_CRYPTO_MD5 is not set
++# CONFIG_CRYPTO_MICHAEL_MIC is not set
++# CONFIG_CRYPTO_RMD128 is not set
++# CONFIG_CRYPTO_RMD160 is not set
++# CONFIG_CRYPTO_RMD256 is not set
++# CONFIG_CRYPTO_RMD320 is not set
++# CONFIG_CRYPTO_SHA1 is not set
++# CONFIG_CRYPTO_SHA1_ARM is not set
++CONFIG_CRYPTO_SHA256=y
++# CONFIG_CRYPTO_SHA512 is not set
++# CONFIG_CRYPTO_TGR192 is not set
++# CONFIG_CRYPTO_WP512 is not set
++
++#
++# Ciphers
++#
++CONFIG_CRYPTO_AES=y
++# CONFIG_CRYPTO_AES_ARM is not set
++# CONFIG_CRYPTO_ANUBIS is not set
++CONFIG_CRYPTO_ARC4=y
++# CONFIG_CRYPTO_BLOWFISH is not set
++# CONFIG_CRYPTO_CAMELLIA is not set
++# CONFIG_CRYPTO_CAST5 is not set
++# CONFIG_CRYPTO_CAST6 is not set
++# CONFIG_CRYPTO_DES is not set
++# CONFIG_CRYPTO_FCRYPT is not set
++# CONFIG_CRYPTO_KHAZAD is not set
++# CONFIG_CRYPTO_SALSA20 is not set
++# CONFIG_CRYPTO_SEED is not set
++# CONFIG_CRYPTO_SERPENT is not set
++# CONFIG_CRYPTO_TEA is not set
++# CONFIG_CRYPTO_TWOFISH is not set
++
++#
++# Compression
++#
++CONFIG_CRYPTO_DEFLATE=y
++# CONFIG_CRYPTO_ZLIB is not set
++CONFIG_CRYPTO_LZO=y
++
++#
++# Random Number Generation
++#
++# CONFIG_CRYPTO_ANSI_CPRNG is not set
++# CONFIG_CRYPTO_USER_API_HASH is not set
++# CONFIG_CRYPTO_USER_API_SKCIPHER is not set
++CONFIG_CRYPTO_HW=y
++# CONFIG_CRYPTO_DEV_HIFN_795X is not set
++CONFIG_CRYPTO_DEV_FSL_CAAM=y
++CONFIG_CRYPTO_DEV_FSL_CAAM_RINGSIZE=9
++# CONFIG_CRYPTO_DEV_FSL_CAAM_INTC is not set
++CONFIG_CRYPTO_DEV_FSL_CAAM_CRYPTO_API=y
++CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API=y
++CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API=y
++# CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_TEST is not set
++CONFIG_CRYPTO_DEV_FSL_CAAM_SM=y
++CONFIG_CRYPTO_DEV_FSL_CAAM_SM_SLOTSIZE=7
++CONFIG_CRYPTO_DEV_FSL_CAAM_SM_TEST=y
++CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO=y
++# CONFIG_ASYMMETRIC_KEY_TYPE is not set
++# CONFIG_BINARY_PRINTF is not set
++
++#
++# Library routines
++#
++CONFIG_BITREVERSE=y
++CONFIG_RATIONAL=y
++CONFIG_GENERIC_STRNCPY_FROM_USER=y
++CONFIG_GENERIC_STRNLEN_USER=y
++CONFIG_GENERIC_PCI_IOMAP=y
++CONFIG_GENERIC_IO=y
++CONFIG_STMP_DEVICE=y
++CONFIG_CRC_CCITT=m
++CONFIG_CRC16=y
++CONFIG_CRC_T10DIF=y
++CONFIG_CRC_ITU_T=m
++CONFIG_CRC32=y
++# CONFIG_CRC32_SELFTEST is not set
++CONFIG_CRC32_SLICEBY8=y
++# CONFIG_CRC32_SLICEBY4 is not set
++# CONFIG_CRC32_SARWATE is not set
++# CONFIG_CRC32_BIT is not set
++CONFIG_CRC7=y
++CONFIG_LIBCRC32C=m
++# CONFIG_CRC8 is not set
++CONFIG_ZLIB_INFLATE=y
++CONFIG_ZLIB_DEFLATE=y
++CONFIG_LZO_COMPRESS=y
++CONFIG_LZO_DECOMPRESS=y
++# CONFIG_XZ_DEC is not set
++# CONFIG_XZ_DEC_BCJ is not set
++CONFIG_DECOMPRESS_GZIP=y
++CONFIG_GENERIC_ALLOCATOR=y
++CONFIG_HAS_IOMEM=y
++CONFIG_HAS_IOPORT=y
++CONFIG_HAS_DMA=y
++CONFIG_CPU_RMAP=y
++CONFIG_DQL=y
++CONFIG_NLATTR=y
++CONFIG_ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE=y
++CONFIG_AVERAGE=y
++# CONFIG_CORDIC is not set
++# CONFIG_DDR is not set
++CONFIG_OID_REGISTRY=y
++# CONFIG_VIRTUALIZATION is not set
+diff --git a/arch/arm/mach-imx/mach-imx6q.c b/arch/arm/mach-imx/mach-imx6q.c
+index 5fb11af..ef82ed1 100644
+--- a/arch/arm/mach-imx/mach-imx6q.c
++++ b/arch/arm/mach-imx/mach-imx6q.c
+@@ -220,10 +220,12 @@ static void __init imx6q_csi_mux_init(void)
+ 	gpr = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
+ 	if (!IS_ERR(gpr)) {
+ 		if (of_machine_is_compatible("fsl,imx6q-sabresd") ||
+-			of_machine_is_compatible("fsl,imx6q-sabreauto"))
++			of_machine_is_compatible("fsl,imx6q-sabreauto") ||
++			of_machine_is_compatible("fsl,imx6q-var-som"))
+ 			regmap_update_bits(gpr, IOMUXC_GPR1, 1 << 19, 1 << 19);
+ 		else if (of_machine_is_compatible("fsl,imx6dl-sabresd") ||
+-			 of_machine_is_compatible("fsl,imx6dl-sabreauto"))
++			 of_machine_is_compatible("fsl,imx6dl-sabreauto") ||
++			 of_machine_is_compatible("fsl,imx6dl-var-som"))
+ 			regmap_update_bits(gpr, IOMUXC_GPR13, 0x3F, 0x0C);
+ 	} else {
+ 		pr_err("%s(): failed to find fsl,imx6q-iomux-gpr regmap\n",
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index 041a3da..43633af 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -42,6 +42,19 @@ config TOUCHSCREEN_ADS7846
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called ads7846.
+ 
++config TOUCHSCREEN_CTW6120
++	tristate "CTW1620 based touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen interface using the
++	  CTW8120 controller, and your board-specific
++	  initialization code includes that in its table of I2C devices.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ctw6120.
++
+ config TOUCHSCREEN_AD7877
+ 	tristate "AD7877 based touchscreens"
+ 	depends on SPI_MASTER
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index a5dde29..c011c9d 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -9,6 +9,7 @@ wm97xx-ts-y := wm97xx-core.o
+ obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
++obj-$(CONFIG_TOUCHSCREEN_CTW6120)	+= ctw6120.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879_SPI)	+= ad7879-spi.o
+ obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
+diff --git a/drivers/input/touchscreen/ads7846.c b/drivers/input/touchscreen/ads7846.c
+index 84ccf14..ea19536 100644
+--- a/drivers/input/touchscreen/ads7846.c
++++ b/drivers/input/touchscreen/ads7846.c
+@@ -27,6 +27,9 @@
+ #include <linux/interrupt.h>
+ #include <linux/slab.h>
+ #include <linux/pm.h>
++#include <linux/of.h>
++#include <linux/of_gpio.h>
++#include <linux/of_device.h>
+ #include <linux/gpio.h>
+ #include <linux/spi/spi.h>
+ #include <linux/spi/ads7846.h>
+@@ -961,9 +964,9 @@ static int ads7846_resume(struct device *dev)
+ static SIMPLE_DEV_PM_OPS(ads7846_pm, ads7846_suspend, ads7846_resume);
+ 
+ static int ads7846_setup_pendown(struct spi_device *spi,
+-					   struct ads7846 *ts)
++				 struct ads7846 *ts,
++				 const struct ads7846_platform_data *pdata)
+ {
+-	struct ads7846_platform_data *pdata = spi->dev.platform_data;
+ 	int err;
+ 
+ 	/*
+@@ -1003,7 +1006,7 @@ static int ads7846_setup_pendown(struct spi_device *spi,
+  * use formula #2 for pressure, not #3.
+  */
+ static void ads7846_setup_spi_msg(struct ads7846 *ts,
+-				const struct ads7846_platform_data *pdata)
++				  const struct ads7846_platform_data *pdata)
+ {
+ 	struct spi_message *m = &ts->msg[0];
+ 	struct spi_transfer *x = ts->xfer;
+@@ -1201,33 +1204,107 @@ static void ads7846_setup_spi_msg(struct ads7846 *ts,
+ 	spi_message_add_tail(x, m);
+ }
+ 
++#ifdef CONFIG_OF
++static const struct of_device_id ads7846_dt_ids[] = {
++	{ .compatible = "ti,tsc2046",	.data = (void *) 7846 },
++	{ .compatible = "ti,ads7843",	.data = (void *) 7843 },
++	{ .compatible = "ti,ads7845",	.data = (void *) 7845 },
++	{ .compatible = "ti,ads7846",	.data = (void *) 7846 },
++	{ .compatible = "ti,ads7873",	.data = (void *) 7873 },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, ads7846_dt_ids);
++
++static const struct ads7846_platform_data *ads7846_probe_dt(struct device *dev)
++{
++	struct ads7846_platform_data *pdata;
++	struct device_node *node = dev->of_node;
++	const struct of_device_id *match;
++
++	if (!node) {
++		dev_err(dev, "Device does not have associated DT data\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	match = of_match_device(ads7846_dt_ids, dev);
++	if (!match) {
++		dev_err(dev, "Unknown device model\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
++	if (!pdata)
++		return ERR_PTR(-ENOMEM);
++
++	pdata->model = (unsigned long)match->data;
++
++	of_property_read_u16(node, "ti,vref-delay-usecs",
++			     &pdata->vref_delay_usecs);
++	of_property_read_u16(node, "ti,vref-mv", &pdata->vref_mv);
++	pdata->keep_vref_on = of_property_read_bool(node, "ti,keep-vref-on");
++
++	pdata->swap_xy = of_property_read_bool(node, "ti,swap-xy");
++
++	of_property_read_u16(node, "ti,settle-delay-usec",
++			     &pdata->settle_delay_usecs);
++	of_property_read_u16(node, "ti,penirq-recheck-delay-usecs",
++			     &pdata->penirq_recheck_delay_usecs);
++
++	of_property_read_u16(node, "ti,x-plate-ohms", &pdata->x_plate_ohms);
++	of_property_read_u16(node, "ti,y-plate-ohms", &pdata->y_plate_ohms);
++
++	of_property_read_u16(node, "ti,x-min", &pdata->x_min);
++	of_property_read_u16(node, "ti,y-min", &pdata->y_min);
++	of_property_read_u16(node, "ti,x-max", &pdata->x_max);
++	of_property_read_u16(node, "ti,y-max", &pdata->y_max);
++
++	of_property_read_u16(node, "ti,pressure-min", &pdata->pressure_min);
++	of_property_read_u16(node, "ti,pressure-max", &pdata->pressure_max);
++
++	of_property_read_u16(node, "ti,debounce-max", &pdata->debounce_max);
++	of_property_read_u16(node, "ti,debounce-tol", &pdata->debounce_tol);
++	of_property_read_u16(node, "ti,debounce-rep", &pdata->debounce_rep);
++
++	of_property_read_u32(node, "ti,pendown-gpio-debounce",
++			     &pdata->gpio_pendown_debounce);
++
++	pdata->wakeup = of_property_read_bool(node, "linux,wakeup");
++
++	pdata->gpio_pendown = of_get_named_gpio(dev->of_node, "pendown-gpio", 0);
++
++	return pdata;
++}
++#else
++static const struct ads7846_platform_data *ads7846_probe_dt(struct device *dev)
++{
++	dev_err(dev, "no platform data defined\n");
++	return ERR_PTR(-EINVAL);
++}
++#endif
++
+ static int ads7846_probe(struct spi_device *spi)
+ {
++	const struct ads7846_platform_data *pdata;
+ 	struct ads7846 *ts;
+ 	struct ads7846_packet *packet;
+ 	struct input_dev *input_dev;
+-	struct ads7846_platform_data *pdata = spi->dev.platform_data;
+ 	unsigned long irq_flags;
+ 	int err;
+ 
+ 	if (!spi->irq) {
+ 		dev_dbg(&spi->dev, "no IRQ?\n");
+-		return -ENODEV;
+-	}
+-
+-	if (!pdata) {
+-		dev_dbg(&spi->dev, "no platform data?\n");
+-		return -ENODEV;
++		return -EINVAL;
+ 	}
+ 
+ 	/* don't exceed max specified sample rate */
+ 	if (spi->max_speed_hz > (125000 * SAMPLE_BITS)) {
+-		dev_dbg(&spi->dev, "f(sample) %d KHz?\n",
++		dev_err(&spi->dev, "f(sample) %d KHz?\n",
+ 				(spi->max_speed_hz/SAMPLE_BITS)/1000);
+ 		return -EINVAL;
+ 	}
+ 
+-	/* We'd set TX word size 8 bits and RX word size to 13 bits ... except
++	/*
++	 * We'd set TX word size 8 bits and RX word size to 13 bits ... except
+ 	 * that even if the hardware can do that, the SPI controller driver
+ 	 * may not.  So we stick to very-portable 8 bit words, both RX and TX.
+ 	 */
+@@ -1250,17 +1327,25 @@ static int ads7846_probe(struct spi_device *spi)
+ 	ts->packet = packet;
+ 	ts->spi = spi;
+ 	ts->input = input_dev;
+-	ts->vref_mv = pdata->vref_mv;
+-	ts->swap_xy = pdata->swap_xy;
+ 
+ 	mutex_init(&ts->lock);
+ 	init_waitqueue_head(&ts->wait);
+ 
++	pdata = dev_get_platdata(&spi->dev);
++	if (!pdata) {
++		pdata = ads7846_probe_dt(&spi->dev);
++		if (IS_ERR(pdata))
++			return PTR_ERR(pdata);
++	}
++
+ 	ts->model = pdata->model ? : 7846;
+ 	ts->vref_delay_usecs = pdata->vref_delay_usecs ? : 100;
+ 	ts->x_plate_ohms = pdata->x_plate_ohms ? : 400;
+ 	ts->pressure_max = pdata->pressure_max ? : ~0;
+ 
++	ts->vref_mv = pdata->vref_mv;
++	ts->swap_xy = pdata->swap_xy;
++
+ 	if (pdata->filter != NULL) {
+ 		if (pdata->filter_init != NULL) {
+ 			err = pdata->filter_init(pdata, &ts->filter_data);
+@@ -1281,7 +1366,7 @@ static int ads7846_probe(struct spi_device *spi)
+ 		ts->filter = ads7846_no_filter;
+ 	}
+ 
+-	err = ads7846_setup_pendown(spi, ts);
++	err = ads7846_setup_pendown(spi, ts, pdata);
+ 	if (err)
+ 		goto err_cleanup_filter;
+ 
+@@ -1370,6 +1455,13 @@ static int ads7846_probe(struct spi_device *spi)
+ 
+ 	device_init_wakeup(&spi->dev, pdata->wakeup);
+ 
++	/*
++	 * If device does not carry platform data we must have allocated it
++	 * when parsing DT data.
++	 */
++	if (!dev_get_platdata(&spi->dev))
++		devm_kfree(&spi->dev, (void *)pdata);
++
+ 	return 0;
+ 
+  err_remove_attr_group:
+@@ -1437,6 +1529,7 @@ static struct spi_driver ads7846_driver = {
+ 		.name	= "ads7846",
+ 		.owner	= THIS_MODULE,
+ 		.pm	= &ads7846_pm,
++		.of_match_table = of_match_ptr(ads7846_dt_ids),
+ 	},
+ 	.probe		= ads7846_probe,
+ 	.remove		= ads7846_remove,
+diff --git a/drivers/input/touchscreen/ctw6120.c b/drivers/input/touchscreen/ctw6120.c
+new file mode 100644
+index 0000000..58022e0
+--- /dev/null
++++ b/drivers/input/touchscreen/ctw6120.c
+@@ -0,0 +1,421 @@
++/*
++ * Driver for Pixcir I2C touchscreen controllers.
++ *
++ * Copyright (C) 2010-2011 Pixcir, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
++ */
++
++#include <linux/delay.h>
++#include <linux/module.h>
++#include <linux/interrupt.h>
++#include <linux/slab.h>
++#include <linux/i2c.h>
++#include <linux/input.h>
++#include <linux/input/mt.h>
++#include <linux/i2c/ctw6120.h>
++#include <linux/gpio.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++
++#define	 MAX_12BIT		((1 << 12) - 1)
++
++struct ctw6120_i2c_ts_data {
++	struct i2c_client *client;
++	struct input_dev *input;
++	const struct ctw6120_ts_platform_data *pdata;
++	bool exiting;
++	unsigned pendown:1;	/* P: lock */
++};
++
++static int ctw6120_read(struct i2c_client *client, char reg, unsigned char *buf, int size)
++{
++	int ret;
++	/* send request to controller */
++	ret = i2c_master_send(client, &reg, 1);
++	if (ret < 0)
++		return ret;
++
++	/* read data from controller */
++	ret = i2c_master_recv(client, buf, size);
++	if (ret < 0)
++		return ret;
++	if (ret != size)
++		return -EIO;
++	return 0;
++}
++
++static int ctw6120_ts_report(struct ctw6120_i2c_ts_data *tsdata)
++{
++	unsigned char touch_regs[26];
++
++	if(tsdata->exiting)
++		return 0;
++
++	/* read all the data from controller */
++	ctw6120_read(tsdata->client, 0xF9, touch_regs, 26);
++
++	if (unlikely(!touch_regs[3])) {
++
++		/* check for transition state */
++		if (tsdata->pendown) {
++			input_report_key(tsdata->input, BTN_TOUCH, 0);
++			input_report_abs(tsdata->input, ABS_PRESSURE, 0);
++			input_sync(tsdata->input);
++			tsdata->pendown = 0;
++		}
++	} else {
++		unsigned short curr_x;
++		unsigned short curr_y;
++		unsigned short curr_x2;
++		unsigned short curr_y2;
++
++		curr_x = (touch_regs[5] << 8) + touch_regs[6];
++		curr_x = curr_x & 0x7FF;
++
++		curr_y = (touch_regs[7] << 8) + touch_regs[8];
++		curr_y &= 0xFFF;
++
++		curr_x2 = (touch_regs[9] << 8) + touch_regs[10];
++		curr_x2 = curr_x2 & 0x7FF;
++
++		curr_y2 = (touch_regs[11] << 8) + touch_regs[12];
++		curr_y2 &= 0xFFF;
++
++		/* report pendown event if need */
++		if (!tsdata->pendown) {
++			input_report_key(tsdata->input, BTN_TOUCH, 1);
++			tsdata->pendown = 1;
++		}
++
++		curr_x = (curr_x * 800) / 1790;
++		curr_y = (curr_y * 480) / 1024;
++		curr_x2 = (curr_x2 * 800) / 1790;
++		curr_y2 = (curr_y2 * 480) / 1024;
++
++		/* set data to be reported */
++		input_report_abs(tsdata->input, ABS_X, curr_x);
++		input_report_abs(tsdata->input, ABS_Y, curr_y);
++		input_report_abs(tsdata->input, ABS_PRESSURE, 100);	/* FIXME: calculate real pressure */
++
++		/* report to input subsystem */
++		input_sync(tsdata->input);
++	}
++
++	return 0;
++}
++
++static irqreturn_t ctw6120_ts_isr(int irq, void *dev_id)
++{
++	struct ctw6120_i2c_ts_data *tsdata = dev_id;
++
++	ctw6120_ts_report(tsdata);
++
++	return IRQ_HANDLED;
++}
++
++/*
++ * Enable/disable interrupt generation
++ */
++static int ctw6120_int_enable(struct ctw6120_i2c_ts_data *ts, bool enable)
++{
++	//struct device *dev = &ts->client->dev;
++
++	return 0;
++}
++
++static int ctw6120_start(struct ctw6120_i2c_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	enable_irq(ts->client->irq);
++
++	/* enable interrupt generation */
++	ret = ctw6120_int_enable(ts, 1);
++	if (ret) {
++		dev_err(dev, "Failed to enable interrupt generation\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++static int ctw6120_stop(struct ctw6120_i2c_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	/* disable interrupt generation */
++	ret = ctw6120_int_enable(ts, 0);
++	if (ret) {
++		dev_err(dev, "Failed to disable interrupt generation\n");
++		return ret;
++	}
++
++	disable_irq(ts->client->irq);
++
++	return 0;
++}
++
++static int ctw6120_input_open(struct input_dev *dev)
++{
++	struct ctw6120_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	return ctw6120_start(ts);
++}
++
++static void ctw6120_input_close(struct input_dev *dev)
++{
++	struct ctw6120_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	ctw6120_stop(ts);
++
++	return;
++}
++
++#if defined(CONFIG_OF)
++static const struct of_device_id ctw6120_of_match[];
++
++static struct ctw6120_ts_platform_data *ctw6120_parse_dt(struct device *dev)
++{
++	struct ctw6120_ts_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++	const struct of_device_id *match;
++
++	match = of_match_device(of_match_ptr(ctw6120_of_match), dev);
++	if (!match)
++		return ERR_PTR(-EINVAL);
++
++	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
++	if (!pdata)
++		return ERR_PTR(-ENOMEM);
++
++	if (of_property_read_u32(np, "x-size", &pdata->x_size)) {
++		dev_err(dev, "Failed to get x-size property\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	if (of_property_read_u32(np, "y-size", &pdata->y_size)) {
++		dev_err(dev, "Failed to get y-size property\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	dev_dbg(dev, "%s: x %d, y %d\n", __func__,
++				pdata->x_size, pdata->y_size);
++
++	return pdata;
++}
++#else
++static struct ctw6120_ts_platform_data *ctw6120_parse_dt(struct device *dev)
++{
++	return NULL;
++}
++#endif
++
++static int ctw6120_i2c_ts_probe(struct i2c_client *client,
++					 const struct i2c_device_id *id)
++{
++	const struct ctw6120_ts_platform_data *pdata = client->dev.platform_data;
++	struct device *dev = &client->dev;
++	struct device_node *np = dev->of_node;
++	struct ctw6120_i2c_ts_data *tsdata;
++	struct input_dev *input;
++	int error;
++	unsigned char revid;
++	char reg = 0;
++
++	if (np) {
++		pdata = ctw6120_parse_dt(dev);
++		if (IS_ERR(pdata))
++			return PTR_ERR(pdata);
++	} else if (!pdata) {
++		dev_err(&client->dev, "platform data not defined\n");
++		return -EINVAL;
++	}
++
++	i2c_master_send(client, &reg, 1);
++
++	/* read data from controller */
++	error = i2c_master_recv(client, &revid,  sizeof(revid));
++	if (error != sizeof(revid))
++		return -EIO;
++
++	dev_info(&client->dev, "CTW6120: revid %x touchscreen, irq %d\n", revid, client->irq);
++
++	// Set static pointer to reg zero
++	reg=CTW6120_STATUS_REG;
++	i2c_master_send(client, &reg, 1);
++
++	tsdata = devm_kzalloc(dev, sizeof(*tsdata), GFP_KERNEL);
++	if (!tsdata)
++		return -ENOMEM;
++
++	input = devm_input_allocate_device(dev);
++	if (!input) {
++		dev_err(&client->dev, "Failed to allocate input device\n");
++		return -ENOMEM;
++	}
++
++	tsdata->client = client;
++	tsdata->input = input;
++	tsdata->pdata = pdata;
++
++	input->name = client->name;
++	input->id.bustype = BUS_I2C;
++	input->dev.parent = &client->dev;
++	input->open = ctw6120_input_open;
++	input->close = ctw6120_input_close;
++
++	__set_bit(EV_KEY, input->evbit);
++	__set_bit(EV_ABS, input->evbit);
++	__set_bit(BTN_TOUCH, input->keybit);
++
++	/* set range of the parameters */
++	input_set_abs_params(input, ABS_X, 0, 799, 0, 0);
++	input_set_abs_params(input, ABS_Y, 0, 479, 0, 0);
++	input_set_abs_params(input, ABS_PRESSURE, 0, MAX_12BIT, 0, 0);
++
++	input_set_drvdata(input, tsdata);
++
++	error = devm_request_threaded_irq(dev, client->irq, NULL, ctw6120_ts_isr,
++				     IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
++				     | IRQF_ONESHOT,
++				     client->name, tsdata);
++	if (error) {
++		dev_err(dev, "failed to request irq %d\n", client->irq);
++		return error;
++	}
++
++	/* Stop device till opened */
++	error = ctw6120_stop(tsdata);
++	if (error)
++		return error;
++
++	error = input_register_device(input);
++	if (error)
++		return error;
++
++	i2c_set_clientdata(client, tsdata);
++	device_init_wakeup(&client->dev, 1);
++
++	return 0;
++}
++
++static int ctw6120_i2c_ts_remove(struct i2c_client *client)
++{
++	struct ctw6120_i2c_ts_data *tsdata = i2c_get_clientdata(client);
++
++	device_init_wakeup(&client->dev, 0);
++
++	tsdata->exiting = true;
++	mb();
++
++	return 0;
++}
++
++#ifdef CONFIG_PM_SLEEP
++static int ctw6120_i2c_ts_suspend(struct device *dev)
++{
++	struct i2c_client *client = to_i2c_client(dev);
++	struct ctw6120_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
++
++	if (device_may_wakeup(&client->dev)) {
++		/* need to start device if not open, to be wakeup source */
++		if (!input->users) {
++			ret = ctw6120_start(ts);
++			if (ret)
++				goto unlock;
++		}
++
++		enable_irq_wake(client->irq);
++
++	} else if (input->users) {
++		ret = ctw6120_stop(ts);
++	}
++
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
++}
++
++static int ctw6120_i2c_ts_resume(struct device *dev)
++{
++	struct i2c_client *client = to_i2c_client(dev);
++	struct ctw6120_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
++
++	if (device_may_wakeup(&client->dev)) {
++		disable_irq_wake(client->irq);
++
++		/* need to stop device if it was not open on suspend */
++		if (!input->users) {
++			ret = ctw6120_stop(ts);
++			if (ret)
++				goto unlock;
++		}
++
++	} else if (input->users) {
++		ret = ctw6120_start(ts);
++	}
++
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
++}
++#endif
++
++static SIMPLE_DEV_PM_OPS(ctw6120_dev_pm_ops,
++				ctw6120_i2c_ts_suspend, ctw6120_i2c_ts_resume);
++
++static const struct i2c_device_id ctw6120_i2c_ts_id[] = {
++	{ "ctw6120_tsc", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, ctw6120_i2c_ts_id);
++
++#if defined(CONFIG_OF)
++static const struct of_device_id ctw6120_of_match[] = {
++	{ .compatible = "fsl,ctw6120-tsc", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, ctw6120_of_match);
++#endif
++
++static struct i2c_driver ctw6120_i2c_ts_driver = {
++	.driver = {
++		.owner	= THIS_MODULE,
++		.name	= "ctw6120_tsc",
++		.pm	= &ctw6120_dev_pm_ops,
++		.of_match_table = of_match_ptr(ctw6120_of_match),
++	},
++	.probe		= ctw6120_i2c_ts_probe,
++	.remove		= ctw6120_i2c_ts_remove,
++	.id_table	= ctw6120_i2c_ts_id,
++};
++
++module_i2c_driver(ctw6120_i2c_ts_driver);
++
++MODULE_AUTHOR("Uri Yosef <uri.yf@variscite.com>");
++MODULE_DESCRIPTION("CTW6120 I2C Touchscreen Driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/mmc/host/sdhci.c b/drivers/mmc/host/sdhci.c
+index beb3fc9..e377bc6 100644
+--- a/drivers/mmc/host/sdhci.c
++++ b/drivers/mmc/host/sdhci.c
+@@ -1140,11 +1140,20 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
+ 	u16 clk = 0;
+ 	unsigned long timeout;
+ 
++
+ 	if (clock && clock == host->clock)
+ 		return;
+ 
+ 	host->mmc->actual_clock = 0;
+ 
++        //Check if the dts file set a max-frequency property which is lower than standard 
++        if (host->ops->get_max_clock) {
++ 	     unsigned int max_freq=0;	
++            max_freq=host->ops->get_max_clock(host);
++            if (max_freq && (max_freq < clock))
++                 clock=max_freq;
++            printk(KERN_DEBUG "clock set to %d\n",clock);
++		}
+ 	if (host->ops->set_clock) {
+ 		host->ops->set_clock(host, clock);
+ 		if (host->quirks & SDHCI_QUIRK_NONSTANDARD_CLOCK)
+diff --git a/drivers/net/wireless/ti/wlcore/sdio.c b/drivers/net/wireless/ti/wlcore/sdio.c
+index 29ef249..53bbb28 100644
+--- a/drivers/net/wireless/ti/wlcore/sdio.c
++++ b/drivers/net/wireless/ti/wlcore/sdio.c
+@@ -30,7 +30,7 @@
+ #include <linux/mmc/sdio_ids.h>
+ #include <linux/mmc/card.h>
+ #include <linux/mmc/host.h>
+-#include <linux/gpio.h>
++#include <linux/of_irq.h>
+ #include <linux/wl12xx.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/printk.h>
+@@ -214,6 +214,43 @@ static struct wl1271_if_operations sdio_ops = {
+ 	.set_block_size = wl1271_sdio_set_block_size,
+ };
+ 
++static struct wl12xx_platform_data *wlcore_get_pdata_from_of(struct device *dev)
++{
++	struct wl12xx_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++
++	if (!np) {
++		np = of_find_matching_node(NULL, dev->driver->of_match_table);
++		if (!np) {
++			dev_notice(dev, "device tree node not available\n");
++			pdata = ERR_PTR(-ENODEV);
++			goto out;
++		}
++	}
++
++	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
++	if (!pdata) {
++		dev_err(dev, "can't allocate platform data\n");
++		pdata = ERR_PTR(-ENODEV);
++		goto out;
++	}
++
++	pdata->irq = irq_of_parse_and_map(np, 0);
++	if (pdata->irq < 0) {
++		dev_err(dev, "can't get interrupt gpio from the device tree\n");
++		goto out_free;
++	}
++	pdata->board_ref_clock = WL12XX_REFCLOCK_38; /* 38.4 MHz */
++	goto out;
++
++out_free:
++	kfree(pdata);
++	pdata = ERR_PTR(-ENODEV);
++
++out:
++	return pdata;
++}
++
+ static int wl1271_probe(struct sdio_func *func,
+ 				  const struct sdio_device_id *id)
+ {
+@@ -248,11 +285,23 @@ static int wl1271_probe(struct sdio_func *func,
+ 	/* Use block mode for transferring over one block size of data */
+ 	func->card->quirks |= MMC_QUIRK_BLKSZ_FOR_BYTE_MODE;
+ 
++	/* The pdata allocated here is freed when the device is freed,
++	 * so we don't need an additional out label to free it in case
++	 * of error further on.
++	 */
++
++	/* Try to get legacy platform data from the board file */
+ 	pdev_data->pdata = wl12xx_get_platform_data();
+ 	if (IS_ERR(pdev_data->pdata)) {
+-		ret = PTR_ERR(pdev_data->pdata);
+-		dev_err(glue->dev, "missing wlan platform data: %d\n", ret);
+-		goto out_free_glue;
++		dev_info(&func->dev,
++			 "legacy platform data not found, trying device tree\n");
++
++		pdev_data->pdata = wlcore_get_pdata_from_of(&func->dev);
++		if (IS_ERR(pdev_data->pdata)) {
++			ret = PTR_ERR(pdev_data->pdata);
++			dev_err(&func->dev, "can't get platform data\n");
++			goto out_free_glue;
++		}
+ 	}
+ 
+ 	/* if sdio can keep power while host is suspended, enable wow */
+@@ -386,16 +435,25 @@ static const struct dev_pm_ops wl1271_sdio_pm_ops = {
+ };
+ #endif
+ 
++static const struct of_device_id wlcore_sdio_of_match_table[] = {
++	{ .compatible = "ti,wilink6" },
++	{ .compatible = "ti,wilink7" },
++	{ .compatible = "ti,wilink8" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, wlcore_sdio_of_match_table);
++
+ static struct sdio_driver wl1271_sdio_driver = {
+ 	.name		= "wl1271_sdio",
+ 	.id_table	= wl1271_devices,
+ 	.probe		= wl1271_probe,
+ 	.remove		= wl1271_remove,
+-#ifdef CONFIG_PM
+ 	.drv = {
++#ifdef CONFIG_PM
+ 		.pm = &wl1271_sdio_pm_ops,
+-	},
+ #endif
++		.of_match_table = of_match_ptr(wlcore_sdio_of_match_table),
++	},
+ };
+ 
+ static int __init wl1271_init(void)
+diff --git a/drivers/regulator/core.c b/drivers/regulator/core.c
+index d9081cb..fd08da2 100644
+--- a/drivers/regulator/core.c
++++ b/drivers/regulator/core.c
+@@ -1554,12 +1554,16 @@ static int regulator_ena_gpio_ctrl(struct regulator_dev *rdev, bool enable)
+ 	if (!pin)
+ 		return -EINVAL;
+ 
++printk(KERN_DEBUG "regulator_ena_gpio_ctrl(%d,%d) enable_count %d\n",pin->gpio,enable,pin->enable_count);
+ 	if (enable) {
+ 		/* Enable GPIO at initial use */
+ 		if (pin->enable_count == 0)
++                      { 
+ 			gpio_set_value_cansleep(pin->gpio,
+ 						!pin->ena_gpio_invert);
+-
++                        printk(KERN_DEBUG "Regulator pin enabled\n");
++                       }
++                       
+ 		pin->enable_count++;
+ 	} else {
+ 		if (pin->enable_count > 1) {
+@@ -1572,6 +1576,7 @@ static int regulator_ena_gpio_ctrl(struct regulator_dev *rdev, bool enable)
+ 			gpio_set_value_cansleep(pin->gpio,
+ 						pin->ena_gpio_invert);
+ 			pin->enable_count = 0;
++                        printk (KERN_DEBUG "Regulator pin disabled\n");
+ 		}
+ 	}
+ 
+diff --git a/drivers/video/mxc/ldb.c b/drivers/video/mxc/ldb.c
+index 2c7d647..dc5c386 100644
+--- a/drivers/video/mxc/ldb.c
++++ b/drivers/video/mxc/ldb.c
+@@ -144,6 +144,22 @@ static struct fb_videomode ldb_modedb[] = {
+ 	 FB_VMODE_NONINTERLACED,
+ 	 FB_MODE_IS_DETAILED,},
+ 	{
++	 "VAR-WVGA", 57, 800, 480, 28000, 
++	 28, 17, 
++	 13, 20,
++	 20, 13,
++	 0,
++	 FB_VMODE_NONINTERLACED,
++	 FB_MODE_IS_DETAILED,},
++	{
++	 "VAR-WVGA-CTW", 57, 800, 480, 33000,
++	 127, 129,
++	 17, 3,
++	 32, 20,
++	 0,
++	 FB_VMODE_NONINTERLACED,
++	 FB_MODE_IS_DETAILED,},
++	{
+ 	 "LDB-XGA", 60, 1024, 768, 15385,
+ 	 220, 40,
+ 	 21, 7,
+diff --git a/include/linux/i2c/ctw6120.h b/include/linux/i2c/ctw6120.h
+new file mode 100644
+index 0000000..2d86183
+--- /dev/null
++++ b/include/linux/i2c/ctw6120.h
+@@ -0,0 +1,77 @@
++/*
++ * ctw6120.h - header for CTW6120 touch
++ *
++ * Copyright (C) 2014 Variscite LTD.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
++ *
++ */
++
++#ifndef __CTW6120_H_
++#define __CTW6120_H_
++
++#include <linux/types.h>
++
++#define CTW6120_STATUS_REG           0x00
++#define CTW6120_X_HIGH_REG           0x01
++#define CTW6120_X_LOW_REG            0x02
++#define CTW6120_Y_HIGH_REG           0x03
++#define CTW6120_Y_LOW_REG            0x04
++#define CTW6120_BUTTON_REG           0x05
++#define CTW6120_MOVEMENT_REG         0x06
++#define CTW6120_GESTURE_REG          0x09
++#define CTW6120_SLEEP_MODE_REG       0x0A
++#define CTW6120_SENSITIVITY_REG      0x0B
++#define CTW6120_FIRMWARE_REG         0x0C
++
++#define CTW6120_STATUS_NO_FINGERS    0
++#define CTW6120_STATUS_1_FINGER      1
++#define CTW6120_STATUS_2_FINGERS     2
++
++#define CTW6120_BUTTON_LEFT          1
++#define CTW6120_BUTTON_RIGHT         2
++#define CTW6120_BUTTON_MID           4
++
++#define CTW6120_ZOOM_IN              1
++#define CTW6120_ZOOM_OUT            -1
++
++#define CTW6120_GESTURE_NONE             0x00
++#define CTW6120_GESTURE_ZOOM_IN          0x01
++#define CTW6120_GESTURE_ZOOM_OUT         0x02
++#define CTW6120_GESTURE_ST_PAN_UP        0x03
++#define CTW6120_GESTURE_ST_ROTATE_CW     0x04
++#define CTW6120_GESTURE_ST_PAN_RIGHT     0x05
++#define CTW6120_GESTURE_ST_PAN_DOWN      0x06
++#define CTW6120_GESTURE_ST_PAN_LEFT	     0x07
++#define CTW6120_GESTURE_ST_ROTATE_CCW    0x08
++#define CTW6120_GESTURE_ST_CLICK         0x09
++#define CTW6120_GESTURE_MT_PAN_UP        0x0A
++#define CTW6120_GESTURE_MT_PAN_RIGHT     0x0B
++#define CTW6120_GESTURE_MT_PAN_DOWN      0x0C
++#define CTW6120_GESTURE_MT_PAN_LEFT      0x0D
++#define CTW6120_GESTURE_ST_DOUBLE_CLICK  0x0E
++#define CTW6120_GESTURE_MT_CLICK         0x0F
++
++#define CTW6120_GESTURE_ZOOM             ((CTW6120_GESTURE_ZOOM_IN) | (CTW6120_GESTURE_ZOOM_OUT))
++
++#define CTW6120_SLEEP_ENTER              0x01
++#define CTW6120_SLEEP_ESCAPE             0x00
++
++struct ctw6120_ts_platform_data {
++	unsigned int x_size;	/* X axis resolution */
++	unsigned int y_size;	/* Y axis resolution */
++};
++
++#endif /* __CTW6120_H_ */
+diff --git a/net/rfkill/rfkill-gpio.c b/net/rfkill/rfkill-gpio.c
+index fb076cd..37a6cbe 100644
+--- a/net/rfkill/rfkill-gpio.c
++++ b/net/rfkill/rfkill-gpio.c
+@@ -20,6 +20,8 @@
+ #include <linux/init.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
++#include <linux/of_gpio.h>
++#include <linux/of_irq.h>
+ #include <linux/rfkill.h>
+ #include <linux/platform_device.h>
+ #include <linux/clk.h>
+@@ -39,32 +41,30 @@ enum rfkill_gpio_clk_state {
+ #define PWR_CLK_DISABLED(_RF) ((_RF)->pwr_clk_enabled != PWR_ENABLED)
+ 
+ struct rfkill_gpio_data {
+-	struct rfkill_gpio_platform_data	*pdata;
+ 	struct rfkill				*rfkill_dev;
+ 	char					*reset_name;
+ 	char					*shutdown_name;
+ 	enum rfkill_gpio_clk_state		pwr_clk_enabled;
+ 	struct clk				*pwr_clk;
++	int					gpio_cnt;
++	int					gpiolist[5];
+ };
+ 
+ static int rfkill_gpio_set_power(void *data, bool blocked)
+ {
+ 	struct rfkill_gpio_data *rfkill = data;
++	int i;
+ 
+ 	if (blocked) {
+-		if (gpio_is_valid(rfkill->pdata->shutdown_gpio))
+-			gpio_direction_output(rfkill->pdata->shutdown_gpio, 0);
+-		if (gpio_is_valid(rfkill->pdata->reset_gpio))
+-			gpio_direction_output(rfkill->pdata->reset_gpio, 0);
++		for (i = rfkill->gpio_cnt - 1; i >= 0; i--)
++			gpio_direction_output(rfkill->gpiolist[i], 0);
+ 		if (rfkill->pwr_clk && PWR_CLK_ENABLED(rfkill))
+ 			clk_disable(rfkill->pwr_clk);
+ 	} else {
+ 		if (rfkill->pwr_clk && PWR_CLK_DISABLED(rfkill))
+ 			clk_enable(rfkill->pwr_clk);
+-		if (gpio_is_valid(rfkill->pdata->reset_gpio))
+-			gpio_direction_output(rfkill->pdata->reset_gpio, 1);
+-		if (gpio_is_valid(rfkill->pdata->shutdown_gpio))
+-			gpio_direction_output(rfkill->pdata->shutdown_gpio, 1);
++		for (i = 0; i < rfkill->gpio_cnt; i++)
++			gpio_direction_output(rfkill->gpiolist[i], 1);
+ 	}
+ 
+ 	if (rfkill->pwr_clk)
+@@ -77,16 +77,46 @@ static const struct rfkill_ops rfkill_gpio_ops = {
+ 	.set_block = rfkill_gpio_set_power,
+ };
+ 
++static struct rfkill_gpio_platform_data *rfkill_gpio_get_pdata_from_of(struct device *dev)
++{
++	struct rfkill_gpio_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++
++	if (!np) {
++		np = of_find_matching_node(NULL, dev->driver->of_match_table);
++		if (!np) {
++			dev_notice(dev, "device tree node not available\n");
++			return ERR_PTR(-ENODEV);
++		}
++	}
++
++	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
++	if (!pdata) {
++		dev_err(dev, "can't allocate platform data\n");
++		return ERR_PTR(-ENODEV);
++	}
++	pdata->reset_gpio = of_get_named_gpio(np, "gpios", 0);
++	pdata->shutdown_gpio = of_get_named_gpio(np, "gpios", 1);
++	of_property_read_u32(np, "type", &pdata->type);
++	of_property_read_string(np, "name", &pdata->name);
++	return pdata;
++}
++
+ static int rfkill_gpio_probe(struct platform_device *pdev)
+ {
+ 	struct rfkill_gpio_data *rfkill;
+ 	struct rfkill_gpio_platform_data *pdata = pdev->dev.platform_data;
++	struct rfkill_gpio_platform_data *p = NULL;
+ 	int ret = 0;
+ 	int len = 0;
++	int gpio_cnt = 0;
+ 
+ 	if (!pdata) {
+-		pr_warn("%s: No platform data specified\n", __func__);
+-		return -EINVAL;
++		p = pdata = rfkill_gpio_get_pdata_from_of(&pdev->dev);
++		if (IS_ERR(p)) {
++			dev_err(&pdev->dev, "no platform data\n");
++			return PTR_ERR(p);
++		}
+ 	}
+ 
+ 	/* make sure at-least one of the GPIO is defined and that
+@@ -109,8 +139,6 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
+ 		}
+ 	}
+ 
+-	rfkill->pdata = pdata;
+-
+ 	len = strlen(pdata->name);
+ 	rfkill->reset_name = kzalloc(len + 7, GFP_KERNEL);
+ 	if (!rfkill->reset_name) {
+@@ -142,6 +170,7 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
+ 			pr_warn("%s: failed to get reset gpio.\n", __func__);
+ 			goto fail_clock;
+ 		}
++		rfkill->gpiolist[gpio_cnt++] = pdata->reset_gpio;
+ 	}
+ 
+ 	if (gpio_is_valid(pdata->shutdown_gpio)) {
+@@ -150,8 +179,9 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
+ 			pr_warn("%s: failed to get shutdown gpio.\n", __func__);
+ 			goto fail_reset;
+ 		}
++		rfkill->gpiolist[gpio_cnt++] = pdata->shutdown_gpio;
+ 	}
+-
++	rfkill->gpio_cnt = gpio_cnt;
+ 	rfkill->rfkill_dev = rfkill_alloc(pdata->name, &pdev->dev, pdata->type,
+ 					  &rfkill_gpio_ops, rfkill);
+ 	if (!rfkill->rfkill_dev) {
+@@ -166,7 +196,7 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
+ 	platform_set_drvdata(pdev, rfkill);
+ 
+ 	dev_info(&pdev->dev, "%s device registered.\n", pdata->name);
+-
++	kfree(p);
+ 	return 0;
+ 
+ fail_rfkill:
+@@ -186,7 +216,7 @@ fail_reset_name:
+ 	kfree(rfkill->reset_name);
+ fail_alloc:
+ 	kfree(rfkill);
+-
++	kfree(p);
+ 	return ret;
+ }
+ 
+@@ -194,15 +224,14 @@ static int rfkill_gpio_remove(struct platform_device *pdev)
+ {
+ 	struct rfkill_gpio_data *rfkill = platform_get_drvdata(pdev);
+ 	struct rfkill_gpio_platform_data *pdata = pdev->dev.platform_data;
++	int i;
+ 
+ 	if (pdata->gpio_runtime_close)
+ 		pdata->gpio_runtime_close(pdev);
+ 	rfkill_unregister(rfkill->rfkill_dev);
+ 	rfkill_destroy(rfkill->rfkill_dev);
+-	if (gpio_is_valid(rfkill->pdata->shutdown_gpio))
+-		gpio_free(rfkill->pdata->shutdown_gpio);
+-	if (gpio_is_valid(rfkill->pdata->reset_gpio))
+-		gpio_free(rfkill->pdata->reset_gpio);
++	for (i = 0; i < rfkill->gpio_cnt; i++)
++		gpio_free(rfkill->gpiolist[i]);
+ 	if (rfkill->pwr_clk && PWR_CLK_ENABLED(rfkill))
+ 		clk_disable(rfkill->pwr_clk);
+ 	if (rfkill->pwr_clk)
+@@ -214,12 +243,19 @@ static int rfkill_gpio_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++static const struct of_device_id rfkill_gpio_of_match_table[] = {
++	{ .compatible = "net,rfkill-gpio" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, rfkill_gpio_of_match_table);
++
+ static struct platform_driver rfkill_gpio_driver = {
+ 	.probe = rfkill_gpio_probe,
+ 	.remove = rfkill_gpio_remove,
+ 	.driver = {
+ 		   .name = "rfkill_gpio",
+ 		   .owner = THIS_MODULE,
++		   .of_match_table = of_match_ptr(rfkill_gpio_of_match_table),
+ 	},
+ };
+ 
+diff --git a/net/rfkill/rfkill-regulator.c b/net/rfkill/rfkill-regulator.c
+index d11ac79..d7ea8d2 100644
+--- a/net/rfkill/rfkill-regulator.c
++++ b/net/rfkill/rfkill-regulator.c
+@@ -14,6 +14,7 @@
+ 
+ #include <linux/module.h>
+ #include <linux/err.h>
++#include <linux/of_irq.h>
+ #include <linux/slab.h>
+ #include <linux/platform_device.h>
+ #include <linux/regulator/consumer.h>
+@@ -55,22 +56,50 @@ static struct rfkill_ops rfkill_regulator_ops = {
+ 	.set_block = rfkill_regulator_set_block,
+ };
+ 
++static struct rfkill_regulator_platform_data *rfkill_regulator_get_pdata_from_of(struct device *dev)
++{
++	struct rfkill_regulator_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++
++	if (!np) {
++		np = of_find_matching_node(NULL, dev->driver->of_match_table);
++		if (!np) {
++			dev_notice(dev, "device tree node not available\n");
++			return ERR_PTR(-ENODEV);
++		}
++	}
++
++	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
++	if (!pdata) {
++		dev_err(dev, "can't allocate platform data\n");
++		return ERR_PTR(-ENODEV);
++	}
++	of_property_read_u32(np, "type", &pdata->type);
++	of_property_read_string(np, "name", &pdata->name);
++	return pdata;
++}
++
+ static int rfkill_regulator_probe(struct platform_device *pdev)
+ {
+ 	struct rfkill_regulator_platform_data *pdata = pdev->dev.platform_data;
++	struct rfkill_regulator_platform_data *p = NULL;
+ 	struct rfkill_regulator_data *rfkill_data;
+ 	struct regulator *vcc;
+ 	struct rfkill *rf_kill;
+ 	int ret = 0;
+ 
+ 	if (pdata == NULL) {
+-		dev_err(&pdev->dev, "no platform data\n");
+-		return -ENODEV;
++		p = pdata = rfkill_regulator_get_pdata_from_of(&pdev->dev);
++		if (IS_ERR(p)) {
++			dev_err(&pdev->dev, "no platform data\n");
++			return PTR_ERR(p);
++		}
+ 	}
+ 
+ 	if (pdata->name == NULL || pdata->type == 0) {
+ 		dev_err(&pdev->dev, "invalid name or type in platform data\n");
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto out;
+ 	}
+ 
+ 	vcc = regulator_get_exclusive(&pdev->dev, "vrfkill");
+@@ -109,7 +138,7 @@ static int rfkill_regulator_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, rfkill_data);
+ 	dev_info(&pdev->dev, "%s initialized\n", pdata->name);
+-
++	kfree(p);
+ 	return 0;
+ 
+ err_rfkill_register:
+@@ -119,6 +148,7 @@ err_rfkill_alloc:
+ err_data_alloc:
+ 	regulator_put(vcc);
+ out:
++	kfree(p);
+ 	return ret;
+ }
+ 
+@@ -135,12 +165,19 @@ static int rfkill_regulator_remove(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++static const struct of_device_id rfkill_regulator_of_match_table[] = {
++	{ .compatible = "net,rfkill-reg" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, rfkill_regulator_of_match_table);
++
+ static struct platform_driver rfkill_regulator_driver = {
+ 	.probe = rfkill_regulator_probe,
+ 	.remove = rfkill_regulator_remove,
+ 	.driver = {
+ 		.name = "rfkill-regulator",
+ 		.owner = THIS_MODULE,
++		.of_match_table = of_match_ptr(rfkill_regulator_of_match_table),
+ 	},
+ };
+ 
+diff --git a/sound/soc/fsl/Kconfig b/sound/soc/fsl/Kconfig
+index 8e8f1447..b598574 100644
+--- a/sound/soc/fsl/Kconfig
++++ b/sound/soc/fsl/Kconfig
+@@ -209,6 +209,21 @@ config SND_SOC_IMX_WM8962
+ 	  Say Y if you want to add support for SoC audio on an i.MX board with
+ 	  a wm8962 codec.
+ 
++
++config SND_SOC_IMX_TLV320AIC3X
++	tristate "SoC Audio support for i.MX boards with tlv320aic3x"
++	depends on OF && I2C
++	select SND_SOC_WM8962
++	select SND_SOC_TLV320AIC3X
++	select SND_SOC_IMX_PCM_DMA
++	select SND_SOC_IMX_AUDMUX
++	select SND_SOC_FSL_SSI
++	select SND_SOC_FSL_UTILS
++	help
++	  Say Y if you want to add support for SoC audio on an i.MX board with
++	  a tlv320aic3x codec.
++
++
+ config SND_SOC_IMX_SGTL5000
+ 	tristate "SoC Audio support for i.MX boards with sgtl5000"
+ 	depends on OF && I2C
+diff --git a/sound/soc/fsl/Makefile b/sound/soc/fsl/Makefile
+index a04afcf..2e88e4c 100644
+--- a/sound/soc/fsl/Makefile
++++ b/sound/soc/fsl/Makefile
+@@ -55,6 +55,7 @@ snd-soc-wm1133-ev1-objs := wm1133-ev1.o
+ snd-soc-imx-cs42888-objs := imx-cs42888.o
+ snd-soc-imx-sgtl5000-objs := imx-sgtl5000.o
+ snd-soc-imx-wm8962-objs := imx-wm8962.o
++snd-soc-imx-tlv320aic3x-objs := imx-tlv320aic3x.o
+ snd-soc-imx-spdif-objs := imx-spdif.o
+ snd-soc-imx-mc13783-objs := imx-mc13783.o
+ snd-soc-imx-hdmi-objs := imx-hdmi.o
+@@ -67,6 +68,7 @@ obj-$(CONFIG_SND_MXC_SOC_WM1133_EV1) += snd-soc-wm1133-ev1.o
+ obj-$(CONFIG_SND_SOC_IMX_CS42888) += snd-soc-imx-cs42888.o
+ obj-$(CONFIG_SND_SOC_IMX_SGTL5000) += snd-soc-imx-sgtl5000.o
+ obj-$(CONFIG_SND_SOC_IMX_WM8962) += snd-soc-imx-wm8962.o
++obj-$(CONFIG_SND_SOC_IMX_TLV320AIC3X) += snd-soc-imx-tlv320aic3x.o
+ obj-$(CONFIG_SND_SOC_IMX_SPDIF) += snd-soc-imx-spdif.o
+ obj-$(CONFIG_SND_SOC_IMX_MC13783) += snd-soc-imx-mc13783.o
+ obj-$(CONFIG_SND_SOC_IMX_HDMI) += snd-soc-imx-hdmi.o
+diff --git a/sound/soc/fsl/imx-tlv320aic3x.c b/sound/soc/fsl/imx-tlv320aic3x.c
+new file mode 100644
+index 0000000..79024ba
+--- /dev/null
++++ b/sound/soc/fsl/imx-tlv320aic3x.c
+@@ -0,0 +1,580 @@
++/*
++ * 2014 Variscite, Ltd. All Rights Reserved.
++ *
++ * Copyright (C) 2014 Freescale Semiconductor, Inc.
++ *
++ * 2012 Variscite, Ltd. All Rights Reserved.
++ * Based on imx-wm8962.c
++ * Copyright (C) 2012 Freescale Semiconductor, Inc.
++ * Copyright (C) 2012 Linaro Ltd.
++ *
++ * The code contained herein is licensed under the GNU General Public
++ * License. You may obtain a copy of the GNU General Public License
++ * Version 2 or later at the following locations:
++ *
++ * http://www.opensource.org/licenses/gpl-license.html
++ * http://www.gnu.org/copyleft/gpl.html
++ */
++
++#include <linux/module.h>
++#include <linux/of_platform.h>
++#include <linux/of_i2c.h>
++#include <linux/of_gpio.h>
++#include <linux/slab.h>
++#include <linux/gpio.h>
++#include <linux/clk.h>
++#include <sound/soc.h>
++#include <sound/jack.h>
++#include <sound/pcm_params.h>
++#include <sound/soc-dapm.h>
++#include <linux/pinctrl/consumer.h>
++
++#include "../codecs/wm8962.h"
++#include "../codecs/tlv320aic3x.h"
++#include "imx-audmux.h"
++
++#define DAI_NAME_SIZE	32
++
++struct imx_tlv320aic3x_data {
++	struct snd_soc_dai_link dai;
++	struct snd_soc_card card;
++	char codec_dai_name[DAI_NAME_SIZE];
++	char platform_name[DAI_NAME_SIZE];
++	unsigned int clk_frequency;
++};
++
++struct imx_priv {
++	int hp_gpio;
++	int hp_active_low;
++	int mic_gpio;
++	int mic_active_low;
++	bool amic_mono;
++	bool dmic_mono;
++	struct snd_soc_codec *codec;
++	struct platform_device *pdev;
++	struct snd_pcm_substream *first_stream;
++	struct snd_pcm_substream *second_stream;
++};
++static struct imx_priv card_priv;
++
++static struct snd_soc_jack imx_hp_jack;
++static struct snd_soc_jack_pin imx_hp_jack_pins[] = {
++	{
++		.pin = "Headphone Jack",
++		.mask = SND_JACK_HEADPHONE,
++	},
++};
++static struct snd_soc_jack_gpio imx_hp_jack_gpio = {
++	.name = "headphone detect",
++	.report = SND_JACK_HEADPHONE,
++	.debounce_time = 250,
++	.invert = 0,
++};
++
++static struct snd_soc_jack imx_mic_jack;
++static struct snd_soc_jack_pin imx_mic_jack_pins[] = {
++	{
++		.pin = "AMIC",
++		.mask = SND_JACK_MICROPHONE,
++	},
++};
++static struct snd_soc_jack_gpio imx_mic_jack_gpio = {
++	.name = "microphone detect",
++	.report = SND_JACK_MICROPHONE,
++	.debounce_time = 250,
++	.invert = 0,
++};
++
++static int hpjack_status_check(void)
++{
++	struct imx_priv *priv = &card_priv;
++	struct platform_device *pdev = priv->pdev;
++	char *envp[3], *buf;
++	int hp_status, ret;
++
++	if (!gpio_is_valid(priv->hp_gpio))
++		return 0;
++
++	hp_status = gpio_get_value(priv->hp_gpio) ? 1 : 0;
++
++	buf = kmalloc(32, GFP_ATOMIC);
++	if (!buf) {
++		dev_err(&pdev->dev, "%s kmalloc failed\n", __func__);
++		return -ENOMEM;
++	}
++
++	if (hp_status != priv->hp_active_low) {
++		snprintf(buf, 32, "STATE=%d", 2);
++		snd_soc_dapm_disable_pin(&priv->codec->dapm, "Ext Spk");
++		ret = imx_hp_jack_gpio.report;
++	} else {
++		snprintf(buf, 32, "STATE=%d", 0);
++		snd_soc_dapm_enable_pin(&priv->codec->dapm, "Ext Spk");
++		ret = 0;
++	}
++
++	envp[0] = "NAME=headphone";
++	envp[1] = buf;
++	envp[2] = NULL;
++	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
++	kfree(buf);
++
++	return ret;
++}
++
++static int micjack_status_check(void)
++{
++	struct imx_priv *priv = &card_priv;
++	struct platform_device *pdev = priv->pdev;
++	char *envp[3], *buf;
++	int mic_status, ret;
++
++	if (!gpio_is_valid(priv->mic_gpio))
++		return 0;
++
++	mic_status = gpio_get_value(priv->mic_gpio) ? 1 : 0;
++
++	if ((mic_status != priv->mic_active_low && priv->amic_mono)
++		|| (mic_status == priv->mic_active_low && priv->dmic_mono))
++		snd_soc_update_bits(priv->codec, WM8962_THREED1,
++				WM8962_ADC_MONOMIX_MASK, WM8962_ADC_MONOMIX);
++	else
++		snd_soc_update_bits(priv->codec, WM8962_THREED1,
++				WM8962_ADC_MONOMIX_MASK, 0);
++
++	buf = kmalloc(32, GFP_ATOMIC);
++	if (!buf) {
++		dev_err(&pdev->dev, "%s kmalloc failed\n", __func__);
++		return -ENOMEM;
++	}
++
++	if (mic_status != priv->mic_active_low) {
++		snprintf(buf, 32, "STATE=%d", 2);
++		snd_soc_dapm_disable_pin(&priv->codec->dapm, "DMIC");
++		ret = imx_mic_jack_gpio.report;
++	} else {
++		snprintf(buf, 32, "STATE=%d", 0);
++		snd_soc_dapm_enable_pin(&priv->codec->dapm, "DMIC");
++		ret = 0;
++	}
++
++	envp[0] = "NAME=microphone";
++	envp[1] = buf;
++	envp[2] = NULL;
++	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
++	kfree(buf);
++
++	return ret;
++}
++
++
++static const struct snd_soc_dapm_widget imx_tlv320aic3x_dapm_widgets[] = {
++	SND_SOC_DAPM_HP("Headphone Jack", NULL),
++	SND_SOC_DAPM_LINE("Line Out", NULL),
++	SND_SOC_DAPM_MIC("Mic Jack", NULL),
++	SND_SOC_DAPM_LINE("Line In", NULL),
++};
++
++static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
++				     struct snd_pcm_hw_params *params)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_dai *codec_dai = rtd->codec_dai;
++	struct imx_priv *priv = &card_priv;
++	struct device *dev = &priv->pdev->dev;
++	struct snd_soc_card *card = codec_dai->codec->card;
++	struct imx_tlv320aic3x_data *data = snd_soc_card_get_drvdata(card);
++	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
++	u32 dai_format;
++	int ret = 0;
++
++
++	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM;
++	/* set codec DAI configuration */
++	ret = snd_soc_dai_set_fmt(codec_dai, dai_format);
++	if (ret) {
++		dev_err(dev, "failed to set codec dai fmt: %d\n", ret);
++		return ret;
++	}
++
++	/* set cpu DAI configuration */
++	ret = snd_soc_dai_set_fmt(cpu_dai, dai_format);
++	if (ret) {
++		dev_err(dev, "failed to set codec dai fmt: %d\n", ret);
++		return ret;
++	}
++
++	/* set i.MX active slot mask */
++	ret = snd_soc_dai_set_tdm_slot(cpu_dai, 0xfffffffc, 0xfffffffc, 2, 32);
++	if (ret) {
++		dev_err(dev, "failed to set TDM: %d\n", ret);
++		return ret;
++	}
++
++	/* set the codec system clock */
++	ret = snd_soc_dai_set_sysclk(codec_dai, 0, data->clk_frequency, SND_SOC_CLOCK_OUT);
++	if (ret) {
++		dev_err(dev, "failed to set codec SYSCLK: %d\n", ret);
++		return ret;
++	}
++
++	/* set the CPU system clock */
++	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, data->clk_frequency, SND_SOC_CLOCK_OUT);
++	if (ret) {
++		dev_err(dev, "failed to set cpu SYSCLK: %d\n", ret);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int imx_hifi_hw_free(struct snd_pcm_substream *substream)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_dai *codec_dai = rtd->codec_dai;
++	struct imx_priv *priv = &card_priv;
++	struct device *dev = &priv->pdev->dev;
++	int ret;
++
++	/* We don't need to handle anything if there's no substream running */
++	if (!priv->first_stream)
++		return 0;
++
++	if (priv->first_stream == substream)
++		priv->first_stream = priv->second_stream;
++	priv->second_stream = NULL;
++
++	if (!priv->first_stream) {
++		/*
++		 * Continuously setting FLL would cause playback distortion.
++		 * We can fix it just by mute codec after playback.
++		 */
++		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
++			snd_soc_dai_digital_mute(codec_dai, 1, substream->stream);
++
++		/*
++		 * WM8962 doesn't allow us to continuously setting FLL,
++		 * So we set MCLK as sysclk once, which'd remove the limitation.
++		 */
++		ret = snd_soc_dai_set_sysclk(codec_dai, CLKIN_MCLK,
++				0, SND_SOC_CLOCK_IN);
++		if (ret < 0) {
++			dev_err(dev, "failed to switch away from FLL: %d\n", ret);
++			return ret;
++		}
++
++		/* Disable FLL and let codec do pm_runtime_put() */
++		ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL,
++				WM8962_FLL_MCLK, 0, 0);
++		if (ret < 0) {
++			dev_err(dev, "failed to stop FLL: %d\n", ret);
++			return ret;
++		}
++	}
++
++	return 0;
++}
++
++static struct snd_soc_ops imx_hifi_ops = {
++	.hw_params = imx_hifi_hw_params,
++	.hw_free = imx_hifi_hw_free,
++};
++
++static int imx_tlv320aic3x_gpio_init(struct snd_soc_pcm_runtime *rtd)
++{
++	struct snd_soc_codec *codec = rtd->codec;
++	struct imx_priv *priv = &card_priv;
++
++	priv->codec = codec;
++
++	if (gpio_is_valid(priv->hp_gpio)) {
++		imx_hp_jack_gpio.gpio = priv->hp_gpio;
++		imx_hp_jack_gpio.jack_status_check = hpjack_status_check;
++
++		snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE, &imx_hp_jack);
++		snd_soc_jack_add_pins(&imx_hp_jack,
++				ARRAY_SIZE(imx_hp_jack_pins), imx_hp_jack_pins);
++		snd_soc_jack_add_gpios(&imx_hp_jack, 1, &imx_hp_jack_gpio);
++	}
++
++	if (gpio_is_valid(priv->mic_gpio)) {
++		imx_mic_jack_gpio.gpio = priv->mic_gpio;
++		imx_mic_jack_gpio.jack_status_check = micjack_status_check;
++
++		snd_soc_jack_new(codec, "AMIC", SND_JACK_MICROPHONE, &imx_mic_jack);
++		snd_soc_jack_add_pins(&imx_mic_jack,
++				ARRAY_SIZE(imx_mic_jack_pins), imx_mic_jack_pins);
++		snd_soc_jack_add_gpios(&imx_mic_jack, 1, &imx_mic_jack_gpio);
++	} else if (priv->amic_mono || priv->dmic_mono) {
++		/*
++		 * Permanent set monomix bit if only one microphone
++		 * is present on the board while it needs monomix.
++		 */
++		snd_soc_update_bits(priv->codec, WM8962_THREED1,
++				WM8962_ADC_MONOMIX_MASK, WM8962_ADC_MONOMIX);
++	}
++
++	return 0;
++}
++
++static ssize_t show_headphone(struct device_driver *dev, char *buf)
++{
++	struct imx_priv *priv = &card_priv;
++	int hp_status;
++
++	if (!gpio_is_valid(priv->hp_gpio)) {
++		strcpy(buf, "no detect gpio connected\n");
++		return strlen(buf);
++	}
++
++	/* Check if headphone is plugged in */
++	hp_status = gpio_get_value(priv->hp_gpio) ? 1 : 0;
++
++	if (hp_status != priv->hp_active_low)
++		strcpy(buf, "headphone\n");
++	else
++		strcpy(buf, "speaker\n");
++
++	return strlen(buf);
++}
++
++static DRIVER_ATTR(headphone, S_IRUGO | S_IWUSR, show_headphone, NULL);
++
++static ssize_t show_mic(struct device_driver *dev, char *buf)
++{
++	struct imx_priv *priv = &card_priv;
++	int mic_status;
++
++	if (!gpio_is_valid(priv->mic_gpio)) {
++		strcpy(buf, "no detect gpio connected\n");
++		return strlen(buf);
++	}
++
++	/* Check if analog microphone is plugged in */
++	mic_status = gpio_get_value(priv->mic_gpio) ? 1 : 0;
++
++	if (mic_status != priv->mic_active_low)
++		strcpy(buf, "amic\n");
++	else
++		strcpy(buf, "dmic\n");
++
++	return strlen(buf);
++}
++
++static DRIVER_ATTR(microphone, S_IRUGO | S_IWUSR, show_mic, NULL);
++
++static int imx_tlv320aic3x_late_probe(struct snd_soc_card *card)
++{
++	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
++	struct imx_priv *priv = &card_priv;
++	struct imx_tlv320aic3x_data *data = snd_soc_card_get_drvdata(card);
++	struct device *dev = &priv->pdev->dev;
++	int ret;
++
++	ret = snd_soc_dai_set_sysclk(codec_dai, CLKIN_MCLK,
++			data->clk_frequency, SND_SOC_CLOCK_IN);
++	if (ret < 0)
++		dev_err(dev, "failed to set sysclk in %s\n", __func__);
++
++	return ret;
++}
++
++static int imx_tlv320aic3x_probe(struct platform_device *pdev)
++{
++	struct device_node *np = pdev->dev.of_node;
++	struct device_node *ssi_np, *codec_np;
++	struct platform_device *ssi_pdev;
++	struct imx_priv *priv = &card_priv;
++	struct i2c_client *codec_dev;
++	struct imx_tlv320aic3x_data *data;
++	struct clk *codec_clk = NULL;
++	int int_port, ext_port;
++	int ret;
++
++	priv->pdev = pdev;
++
++	ret = of_property_read_u32(np, "mux-int-port", &int_port);
++	if (ret) {
++		dev_err(&pdev->dev, "mux-int-port missing or invalid\n");
++		return ret;
++	}
++	ret = of_property_read_u32(np, "mux-ext-port", &ext_port);
++	if (ret) {
++		dev_err(&pdev->dev, "mux-ext-port missing or invalid\n");
++		return ret;
++	}
++
++	/*
++	 * The port numbering in the hardware manual starts at 1, while
++	 * the audmux API expects it starts at 0.
++	 */
++	int_port--;
++	ext_port--;
++	ret = imx_audmux_v2_configure_port(int_port,
++			IMX_AUDMUX_V2_PTCR_SYN |
++			IMX_AUDMUX_V2_PTCR_TFSEL(ext_port) |
++			IMX_AUDMUX_V2_PTCR_TCSEL(ext_port) |
++			IMX_AUDMUX_V2_PTCR_TFSDIR |
++			IMX_AUDMUX_V2_PTCR_TCLKDIR,
++			IMX_AUDMUX_V2_PDCR_RXDSEL(ext_port));
++	if (ret) {
++		dev_err(&pdev->dev, "audmux internal port setup failed\n");
++		return ret;
++	}
++	imx_audmux_v2_configure_port(ext_port,
++			IMX_AUDMUX_V2_PTCR_SYN,
++			IMX_AUDMUX_V2_PDCR_RXDSEL(int_port));
++	if (ret) {
++		dev_err(&pdev->dev, "audmux external port setup failed\n");
++		return ret;
++	}
++
++	ssi_np = of_parse_phandle(pdev->dev.of_node, "ssi-controller", 0);
++	codec_np = of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
++	if (!ssi_np || !codec_np) {
++		dev_err(&pdev->dev, "phandle missing or invalid\n");
++		ret = -EINVAL;
++		goto fail;
++	}
++
++	ssi_pdev = of_find_device_by_node(ssi_np);
++	if (!ssi_pdev) {
++		dev_err(&pdev->dev, "failed to find SSI platform device\n");
++		ret = -EINVAL;
++		goto fail;
++	}
++	codec_dev = of_find_i2c_device_by_node(codec_np);
++	if (!codec_dev || !codec_dev->driver) {
++		dev_err(&pdev->dev, "failed to find codec platform device\n");
++		ret = -EINVAL;
++		goto fail;
++	}
++
++	priv->first_stream = NULL;
++	priv->second_stream = NULL;
++
++	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
++	if (!data) {
++		ret = -ENOMEM;
++		goto fail;
++	}
++
++	codec_clk = devm_clk_get(&codec_dev->dev, NULL);
++	if (IS_ERR(codec_clk)) {
++		ret = PTR_ERR(codec_clk);
++		dev_err(&codec_dev->dev, "failed to get codec clk: %d\n", ret);
++		goto fail;
++	}
++
++	data->clk_frequency = clk_get_rate(codec_clk);
++	clk_prepare_enable(codec_clk);
++
++	priv->amic_mono = of_property_read_bool(codec_np, "amic-mono");
++	priv->dmic_mono = of_property_read_bool(codec_np, "dmic-mono");
++
++	priv->hp_gpio = of_get_named_gpio_flags(np, "hp-det-gpios", 0,
++				(enum of_gpio_flags *)&priv->hp_active_low);
++	priv->mic_gpio = of_get_named_gpio_flags(np, "mic-det-gpios", 0,
++				(enum of_gpio_flags *)&priv->mic_active_low);
++
++	data->dai.name = "HiFi";
++	data->dai.stream_name = "HiFi";
++	data->dai.codec_dai_name = "tlv320aic3x-hifi";
++//	data->dai.codec_name	 = "tlv320aic3x",
++	data->dai.codec_of_node  = codec_np;
++//	data->dai.cpu_dai_name   = "imx-ssi.1";
++//	data->dai.platform_name	= "imx-pcm-audio.1",
++	data->dai.cpu_dai_name = dev_name(&ssi_pdev->dev);
++	data->dai.platform_of_node = ssi_np;
++	data->dai.ops = &imx_hifi_ops;
++	data->dai.init = &imx_tlv320aic3x_gpio_init;
++	data->dai.dai_fmt = SND_SOC_DAIFMT_DSP_B | SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_IB_NF;
++
++	data->card.dev = &pdev->dev;
++	ret = snd_soc_of_parse_card_name(&data->card, "model");
++	if (ret)
++		goto fail;
++	ret = snd_soc_of_parse_audio_routing(&data->card, "audio-routing");
++	if (ret)
++		goto fail;
++	data->card.num_links = 1;
++	data->card.dai_link = &data->dai;
++	data->card.dapm_widgets = imx_tlv320aic3x_dapm_widgets;
++	data->card.num_dapm_widgets = ARRAY_SIZE(imx_tlv320aic3x_dapm_widgets);
++
++	data->card.late_probe = imx_tlv320aic3x_late_probe;
++
++	platform_set_drvdata(pdev, &data->card);
++	snd_soc_card_set_drvdata(&data->card, data);
++
++	ret = snd_soc_register_card(&data->card);
++	if (ret) {
++		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
++		goto fail;
++	}
++
++	if (gpio_is_valid(priv->hp_gpio)) {
++		ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
++		if (ret) {
++			dev_err(&pdev->dev, "create hp attr failed (%d)\n", ret);
++			goto fail_hp;
++		}
++	}
++
++	if (gpio_is_valid(priv->mic_gpio)) {
++		ret = driver_create_file(pdev->dev.driver, &driver_attr_microphone);
++		if (ret) {
++			dev_err(&pdev->dev, "create mic attr failed (%d)\n", ret);
++			goto fail_mic;
++		}
++	}
++
++	goto fail;
++
++fail_mic:
++	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
++fail_hp:
++	snd_soc_unregister_card(&data->card);
++fail:
++	if (ssi_np)
++		of_node_put(ssi_np);
++	if (codec_np)
++		of_node_put(codec_np);
++
++	return ret;
++}
++
++static int imx_tlv320aic3x_remove(struct platform_device *pdev)
++{
++	struct snd_soc_card *card = platform_get_drvdata(pdev);
++
++	driver_remove_file(pdev->dev.driver, &driver_attr_microphone);
++	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
++
++	snd_soc_unregister_card(card);
++
++	return 0;
++}
++
++static const struct of_device_id imx_tlv320aic3x_dt_ids[] = {
++	{ .compatible = "fsl,imx-audio-tlv320aic3x", },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, imx_tlv320aic3x_dt_ids);
++
++static struct platform_driver imx_tlv320aic3x_driver = {
++	.driver = {
++		.name = "imx-tlv320aic3x",
++		.owner = THIS_MODULE,
++		.pm = &snd_soc_pm_ops,
++		.of_match_table = imx_tlv320aic3x_dt_ids,
++	},
++	.probe = imx_tlv320aic3x_probe,
++	.remove = imx_tlv320aic3x_remove,
++};
++module_platform_driver(imx_tlv320aic3x_driver);
++
++MODULE_AUTHOR("ron.d@variscite.com. Variscite Ltd.");
++MODULE_DESCRIPTION("Variscite i.MX TLV320aic3x ASoC machine driver");
++MODULE_LICENSE("GPL v2");
++MODULE_ALIAS("platform:imx-wtlv320aic3x");
+-- 
+1.8.3.1
+

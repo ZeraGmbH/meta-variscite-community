@@ -1,0 +1,49 @@
+From 28d25d88aef778162b989000b87fe54fd3660242 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 6 Nov 2014 10:23:01 +0100
+Subject: [PATCH 1/3] mxc_hdmi.c: parse EDID extensions only in case monitor
+ supports them
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+For monitor not supporting extensions I get:
+
+[    0.829299] mxc_hdmi 20e0000.hdmi_video: mxc_edid_read_internal
+[    0.960509] mxc_hdmi 20e0000.hdmi_video: Read EDID again
+[    0.960522] mxc_hdmi 20e0000.hdmi_video: mxc_edid_read_internal
+[    1.091703] mxc_hdmi 20e0000.hdmi_video: No modes read from edid
+[    1.091714] mxc_hdmi 20e0000.hdmi_video: create default modelist
+
+and have only 640x480 screen resolution.
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/video/mxc/mxc_hdmi.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/mxc/mxc_hdmi.c b/drivers/video/mxc/mxc_hdmi.c
+index e510025..8ea7d0d 100644
+--- a/drivers/video/mxc/mxc_hdmi.c
++++ b/drivers/video/mxc/mxc_hdmi.c
+@@ -1577,10 +1577,13 @@ static int mxc_edid_read_internal(struct mxc_hdmi *hdmi, unsigned char *edid,
+ 	memset(&fbi->monspecs, 0, sizeof(fbi->monspecs));
+ 	fb_edid_to_monspecs(edid, &fbi->monspecs);
+ 
+-	ret = mxc_edid_parse_ext_blk(edid + EDID_LENGTH,
+-			cfg, &fbi->monspecs);
+-	if (ret < 0)
+-		return -ENOENT;
++	/* edid extension blocks parsing */
++	if (extblknum > 0) {
++		ret = mxc_edid_parse_ext_blk(edid + EDID_LENGTH,
++				cfg, &fbi->monspecs);
++		if (ret < 0)
++			return -ENOENT;
++	}
+ 
+ 	/* need read segment block? */
+ 	if (extblknum > 1) {
+-- 
+1.8.3.1
+

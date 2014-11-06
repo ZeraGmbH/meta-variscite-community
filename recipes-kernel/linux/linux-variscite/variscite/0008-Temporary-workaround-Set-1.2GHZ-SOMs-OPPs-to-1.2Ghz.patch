@@ -1,0 +1,39 @@
+From 5945145f3fca37b0a453e65aca070749ad20e7fd Mon Sep 17 00:00:00 2001
+From: varigit <ron.d@variscite.com>
+Date: Mon, 21 Jul 2014 11:24:45 +0300
+Subject: [PATCH 08/13] Temporary workaround : Set 1.2GHZ SOMs OPPs to 1.2Ghz
+
+---
+ arch/arm/boot/dts/imx6q-var-som-ldo.dts | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/arch/arm/boot/dts/imx6q-var-som-ldo.dts b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+index 1c80bf8..9373627 100644
+--- a/arch/arm/boot/dts/imx6q-var-som-ldo.dts
++++ b/arch/arm/boot/dts/imx6q-var-som-ldo.dts
+@@ -17,6 +17,22 @@
+ 	arm-supply = <&reg_arm>;
+ 	soc-supply = <&reg_soc>;
+ 	pu-supply = <&reg_pu>; /* use pu_dummy if VDDSOC share with VDDPU */
++			operating-points = <
++				/* kHz    uV */
++				1200000 1275000
++				1200000 1250000
++				1200000 1250000
++				1200000 1150000
++				1200000 975000
++			>;
++			fsl,soc-operating-points = <
++				/* ARM kHz  SOC-PU uV */
++				1200000       1275000
++				1200000       1250000
++				1200000       1250000
++				1200000       1175000
++				1200000       1175000
++			>;
+ };
+ 
+ &gpc {
+-- 
+1.8.3.1
+

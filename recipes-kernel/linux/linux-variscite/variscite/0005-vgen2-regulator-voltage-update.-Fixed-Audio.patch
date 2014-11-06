@@ -1,0 +1,27 @@
+From c774cd95a2cf2a1ffa89b188d437f69b59216bf1 Mon Sep 17 00:00:00 2001
+From: varigit <ron.d@variscite.com>
+Date: Wed, 2 Jul 2014 07:39:10 +0300
+Subject: [PATCH 05/13] vgen2 regulator voltage update. Fixed Audio
+
+---
+ arch/arm/boot/dts/imx6qdl-var-som.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6qdl-var-som.dtsi b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+index 02dd541..2c67605 100644
+--- a/arch/arm/boot/dts/imx6qdl-var-som.dtsi
++++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
+@@ -439,8 +439,8 @@
+ 			};
+ 
+ 			vgen2_reg: vgen2 {
+-				regulator-min-microvolt = <800000>;
+-				regulator-max-microvolt = <1550000>;
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3300000>;
+ 			};
+ 
+ 			vgen3_reg: vgen3 {
+-- 
+1.8.3.1
+
