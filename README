@@ -1,0 +1,20 @@
+OE Board support layer for variscite SOMs
+
+This layer depends on:
+
+URI: git://git.openembedded.org/openembedded-core
+branch: master
+revision: HEAD
+
+URI: git://git.yoctoproject.org/meta-fsl-arm
+branch: master
+revision: HEAD
+
+This is a temporary playground layer - don't expect much. When layer's quality is good
+enough it should be merged to meta-fsl-arm-extra.
+
+Send pull requests to openembedded-devel@lists.openembedded.org with '[meta-variscite-community]' in the subject'
+
+When sending single patches, please using something like 'git send-email -1 --to openembedded-devel@lists.openembedded.org --subject-prefix meta-variscite-community'
+
+Layer maintainer: Andreas Müller <schnitzeltony@googlemail.com>
