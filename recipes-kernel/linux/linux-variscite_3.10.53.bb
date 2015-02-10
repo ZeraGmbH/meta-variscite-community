@@ -22,8 +22,8 @@ SRC_URI += " \
     file://variscite/0006-mmc-avoid-setting-a-higher-frequency-than-set-in-dev.patch \
     file://variscite/0008-Add-Variscite-VAR-SOM-MX6-support.patch \
     \
-    file://schnitzeltony/0002-mxc_hdmi-allow-EDID-to-select-non-CEA-modes.patch \
-    file://schnitzeltony/0003-fbmon.c-enable-verbose-debug.patch \
+    file://schnitzeltony/0001-mxc_hdmi-allow-EDID-to-select-non-CEA-modes.patch \
+    file://schnitzeltony/0002-fbmon.c-enable-verbose-debug.patch \
 "
 
 #	file://schnitzeltony/0004-mxc_hdmi.c-temp-debug.patch 
