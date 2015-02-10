@@ -1,7 +1,7 @@
-From 2638091a8b29d205f83de5a767f597091360ca34 Mon Sep 17 00:00:00 2001
+From 5446fe474835085e1c9824d8321b72dfff387720 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
 Date: Thu, 6 Nov 2014 11:39:02 +0100
-Subject: [PATCH 3/3] fbmon.c: enable verbose debug
+Subject: [PATCH 3/4] fbmon.c: enable verbose debug
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

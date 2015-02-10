@@ -1,50 +1,21 @@
-From ebb5d8837686feb0ce27e328e88409f83c0cc9e6 Mon Sep 17 00:00:00 2001
-From: varigit <ron.d@variscite.com>
-Date: Mon, 30 Jun 2014 16:32:00 +0300
-Subject: [PATCH 04/13] Enable GPIO support for MMC port used by wilink
+From 9e5f5e4b6402d2266ada6554af4b9c7304c1dc00 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 13 Nov 2014 13:22:07 +0100
+Subject: [PATCH 5/8] mmc: add en-gpios for wifi
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 
+taken from git://github.com/varigit/linux-2.6-imx.git branch imx_3.10.17_1.0.0_ga_beta_var2
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
 ---
- arch/arm/boot/dts/imx6qdl-var-som.dtsi      | 16 +-----------
  drivers/mmc/core/slot-gpio.c                | 40 +++++++++++++++++++++++++++++
  drivers/mmc/host/sdhci-esdhc-imx.c          | 13 ++++++++++
  include/linux/mmc/slot-gpio.h               |  2 ++
  include/linux/platform_data/mmc-esdhc-imx.h |  1 +
- 5 files changed, 57 insertions(+), 15 deletions(-)
+ 4 files changed, 56 insertions(+)
 
-diff --git a/arch/arm/boot/dts/imx6qdl-var-som.dtsi b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
-index de69fd9..02dd541 100644
---- a/arch/arm/boot/dts/imx6qdl-var-som.dtsi
-+++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
-@@ -77,20 +77,6 @@
- 			/* if a 12xx card is there, configure the clock to WL12XX_REFCLOCK_38_XTAL */
- 			board-ref-clock = <4>;
- 		};
--
--		wlan_en_reg: fixedregulator@2 {
--			compatible = "regulator-fixed";
--			regulator-name = "wlan-en-regulator";
--			regulator-min-microvolt = <3300000>;
--			regulator-max-microvolt = <3300000>;
--
--			/* WLAN_EN GPIO for this board - Bank7, pin8 */
--			gpio = <&gpio7 8 0>;
--
--			/* WLAN card specific delay */
--			startup-delay-us = <70000>;
--			enable-active-high;
--		};
- 	};
- 
- 	gpio-keys {
-@@ -687,7 +673,7 @@
- 	pinctrl-0 = <&pinctrl_usdhc3_2>;
- 	keep-power-in-suspend;
- 	enable-sdio-wakeup;
--	vqmmc-supply = <&wlan_en_reg>;
-+	en-gpios = <&gpio7 8 0>;
- 	non-removable;
- 	cap-power-off-card;
- 	max-frequency = <24000000>;
 diff --git a/drivers/mmc/core/slot-gpio.c b/drivers/mmc/core/slot-gpio.c
 index 3242351..806dc41 100644
 --- a/drivers/mmc/core/slot-gpio.c
@@ -97,10 +68,10 @@ index 3242351..806dc41 100644
   * mmc_gpio_free_ro - free the write-protection gpio
   * @host: mmc host
 diff --git a/drivers/mmc/host/sdhci-esdhc-imx.c b/drivers/mmc/host/sdhci-esdhc-imx.c
-index d2eb891..ff1103b 100644
+index 5afec1e..3799847 100644
 --- a/drivers/mmc/host/sdhci-esdhc-imx.c
 +++ b/drivers/mmc/host/sdhci-esdhc-imx.c
-@@ -966,6 +966,8 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
+@@ -972,6 +972,8 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
  	if (gpio_is_valid(boarddata->wp_gpio))
  		boarddata->wp_type = ESDHC_WP_GPIO;
  
@@ -109,7 +80,7 @@ index d2eb891..ff1103b 100644
  	of_property_read_u32(np, "bus-width", &boarddata->max_bus_width);
  
  	if (of_find_property(np, "no-1-8-v", NULL))
-@@ -1144,6 +1146,17 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
+@@ -1150,6 +1152,17 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
  		break;
  	}
  

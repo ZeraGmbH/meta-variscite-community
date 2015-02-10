@@ -1,0 +1,1275 @@
+From 0e6af76becd49d7c69587f2df7e77c12af3bcd78 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 13 Nov 2014 12:47:38 +0100
+Subject: [PATCH 3/8] add CTW1620 based touchscreens support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+backport of current mainline (3.18-rc4)
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ .../bindings/input/touchscreen/pixcir_i2c_ts.txt   |  26 +
+ .../devicetree/bindings/vendor-prefixes.txt        |   1 +
+ drivers/input/touchscreen/Kconfig                  |  13 +
+ drivers/input/touchscreen/Makefile                 |   1 +
+ drivers/input/touchscreen/ctw6120.c                | 421 +++++++++++++++++
+ drivers/input/touchscreen/pixcir_i2c_ts.c          | 526 ++++++++++++++++++---
+ include/linux/i2c/ctw6120.h                        |  77 +++
+ 7 files changed, 998 insertions(+), 67 deletions(-)
+ create mode 100644 Documentation/devicetree/bindings/input/touchscreen/pixcir_i2c_ts.txt
+ create mode 100644 drivers/input/touchscreen/ctw6120.c
+ create mode 100644 include/linux/i2c/ctw6120.h
+
+diff --git a/Documentation/devicetree/bindings/input/touchscreen/pixcir_i2c_ts.txt b/Documentation/devicetree/bindings/input/touchscreen/pixcir_i2c_ts.txt
+new file mode 100644
+index 0000000..6e55109
+--- /dev/null
++++ b/Documentation/devicetree/bindings/input/touchscreen/pixcir_i2c_ts.txt
+@@ -0,0 +1,26 @@
++* Pixcir I2C touchscreen controllers
++
++Required properties:
++- compatible: must be "pixcir,pixcir_ts" or "pixcir,pixcir_tangoc"
++- reg: I2C address of the chip
++- interrupts: interrupt to which the chip is connected
++- attb-gpio: GPIO connected to the ATTB line of the chip
++- touchscreen-size-x: horizontal resolution of touchscreen (in pixels)
++- touchscreen-size-y: vertical resolution of touchscreen (in pixels)
++
++Example:
++
++	i2c@00000000 {
++		/* ... */
++
++		pixcir_ts@5c {
++			compatible = "pixcir,pixcir_ts";
++			reg = <0x5c>;
++			interrupts = <2 0>;
++			attb-gpio = <&gpf 2 0 2>;
++			touchscreen-size-x = <800>;
++			touchscreen-size-y = <600>;
++		};
++
++		/* ... */
++	};
+diff --git a/Documentation/devicetree/bindings/vendor-prefixes.txt b/Documentation/devicetree/bindings/vendor-prefixes.txt
+index 6931c43..2f44776 100644
+--- a/Documentation/devicetree/bindings/vendor-prefixes.txt
++++ b/Documentation/devicetree/bindings/vendor-prefixes.txt
+@@ -40,6 +40,7 @@ nvidia	NVIDIA
+ nxp	NXP Semiconductors
+ onnn	ON Semiconductor Corp.
+ picochip	Picochip Ltd
++pixcir  PIXCIR MICROELECTRONICS Co., Ltd
+ powervr	PowerVR (deprecated, use img)
+ qcom	Qualcomm, Inc.
+ ralink	Mediatek/Ralink Technology Corp.
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index 041a3da..43633af 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -42,6 +42,19 @@ config TOUCHSCREEN_ADS7846
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called ads7846.
+ 
++config TOUCHSCREEN_CTW6120
++	tristate "CTW1620 based touchscreens"
++	depends on I2C
++	help
++	  Say Y here if you have a touchscreen interface using the
++	  CTW8120 controller, and your board-specific
++	  initialization code includes that in its table of I2C devices.
++
++	  If unsure, say N (but it's safe to say "Y").
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called ctw6120.
++
+ config TOUCHSCREEN_AD7877
+ 	tristate "AD7877 based touchscreens"
+ 	depends on SPI_MASTER
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index a5dde29..c011c9d 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -9,6 +9,7 @@ wm97xx-ts-y := wm97xx-core.o
+ obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
++obj-$(CONFIG_TOUCHSCREEN_CTW6120)	+= ctw6120.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879_SPI)	+= ad7879-spi.o
+ obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
+diff --git a/drivers/input/touchscreen/ctw6120.c b/drivers/input/touchscreen/ctw6120.c
+new file mode 100644
+index 0000000..58022e0
+--- /dev/null
++++ b/drivers/input/touchscreen/ctw6120.c
+@@ -0,0 +1,421 @@
++/*
++ * Driver for Pixcir I2C touchscreen controllers.
++ *
++ * Copyright (C) 2010-2011 Pixcir, Inc.
++ *
++ * This software is licensed under the terms of the GNU General Public
++ * License version 2, as published by the Free Software Foundation, and
++ * may be copied, distributed, and modified under those terms.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
++ */
++
++#include <linux/delay.h>
++#include <linux/module.h>
++#include <linux/interrupt.h>
++#include <linux/slab.h>
++#include <linux/i2c.h>
++#include <linux/input.h>
++#include <linux/input/mt.h>
++#include <linux/i2c/ctw6120.h>
++#include <linux/gpio.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++
++#define	 MAX_12BIT		((1 << 12) - 1)
++
++struct ctw6120_i2c_ts_data {
++	struct i2c_client *client;
++	struct input_dev *input;
++	const struct ctw6120_ts_platform_data *pdata;
++	bool exiting;
++	unsigned pendown:1;	/* P: lock */
++};
++
++static int ctw6120_read(struct i2c_client *client, char reg, unsigned char *buf, int size)
++{
++	int ret;
++	/* send request to controller */
++	ret = i2c_master_send(client, &reg, 1);
++	if (ret < 0)
++		return ret;
++
++	/* read data from controller */
++	ret = i2c_master_recv(client, buf, size);
++	if (ret < 0)
++		return ret;
++	if (ret != size)
++		return -EIO;
++	return 0;
++}
++
++static int ctw6120_ts_report(struct ctw6120_i2c_ts_data *tsdata)
++{
++	unsigned char touch_regs[26];
++
++	if(tsdata->exiting)
++		return 0;
++
++	/* read all the data from controller */
++	ctw6120_read(tsdata->client, 0xF9, touch_regs, 26);
++
++	if (unlikely(!touch_regs[3])) {
++
++		/* check for transition state */
++		if (tsdata->pendown) {
++			input_report_key(tsdata->input, BTN_TOUCH, 0);
++			input_report_abs(tsdata->input, ABS_PRESSURE, 0);
++			input_sync(tsdata->input);
++			tsdata->pendown = 0;
++		}
++	} else {
++		unsigned short curr_x;
++		unsigned short curr_y;
++		unsigned short curr_x2;
++		unsigned short curr_y2;
++
++		curr_x = (touch_regs[5] << 8) + touch_regs[6];
++		curr_x = curr_x & 0x7FF;
++
++		curr_y = (touch_regs[7] << 8) + touch_regs[8];
++		curr_y &= 0xFFF;
++
++		curr_x2 = (touch_regs[9] << 8) + touch_regs[10];
++		curr_x2 = curr_x2 & 0x7FF;
++
++		curr_y2 = (touch_regs[11] << 8) + touch_regs[12];
++		curr_y2 &= 0xFFF;
++
++		/* report pendown event if need */
++		if (!tsdata->pendown) {
++			input_report_key(tsdata->input, BTN_TOUCH, 1);
++			tsdata->pendown = 1;
++		}
++
++		curr_x = (curr_x * 800) / 1790;
++		curr_y = (curr_y * 480) / 1024;
++		curr_x2 = (curr_x2 * 800) / 1790;
++		curr_y2 = (curr_y2 * 480) / 1024;
++
++		/* set data to be reported */
++		input_report_abs(tsdata->input, ABS_X, curr_x);
++		input_report_abs(tsdata->input, ABS_Y, curr_y);
++		input_report_abs(tsdata->input, ABS_PRESSURE, 100);	/* FIXME: calculate real pressure */
++
++		/* report to input subsystem */
++		input_sync(tsdata->input);
++	}
++
++	return 0;
++}
++
++static irqreturn_t ctw6120_ts_isr(int irq, void *dev_id)
++{
++	struct ctw6120_i2c_ts_data *tsdata = dev_id;
++
++	ctw6120_ts_report(tsdata);
++
++	return IRQ_HANDLED;
++}
++
++/*
++ * Enable/disable interrupt generation
++ */
++static int ctw6120_int_enable(struct ctw6120_i2c_ts_data *ts, bool enable)
++{
++	//struct device *dev = &ts->client->dev;
++
++	return 0;
++}
++
++static int ctw6120_start(struct ctw6120_i2c_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	enable_irq(ts->client->irq);
++
++	/* enable interrupt generation */
++	ret = ctw6120_int_enable(ts, 1);
++	if (ret) {
++		dev_err(dev, "Failed to enable interrupt generation\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++static int ctw6120_stop(struct ctw6120_i2c_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	/* disable interrupt generation */
++	ret = ctw6120_int_enable(ts, 0);
++	if (ret) {
++		dev_err(dev, "Failed to disable interrupt generation\n");
++		return ret;
++	}
++
++	disable_irq(ts->client->irq);
++
++	return 0;
++}
++
++static int ctw6120_input_open(struct input_dev *dev)
++{
++	struct ctw6120_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	return ctw6120_start(ts);
++}
++
++static void ctw6120_input_close(struct input_dev *dev)
++{
++	struct ctw6120_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	ctw6120_stop(ts);
++
++	return;
++}
++
++#if defined(CONFIG_OF)
++static const struct of_device_id ctw6120_of_match[];
++
++static struct ctw6120_ts_platform_data *ctw6120_parse_dt(struct device *dev)
++{
++	struct ctw6120_ts_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++	const struct of_device_id *match;
++
++	match = of_match_device(of_match_ptr(ctw6120_of_match), dev);
++	if (!match)
++		return ERR_PTR(-EINVAL);
++
++	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
++	if (!pdata)
++		return ERR_PTR(-ENOMEM);
++
++	if (of_property_read_u32(np, "x-size", &pdata->x_size)) {
++		dev_err(dev, "Failed to get x-size property\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	if (of_property_read_u32(np, "y-size", &pdata->y_size)) {
++		dev_err(dev, "Failed to get y-size property\n");
++		return ERR_PTR(-EINVAL);
++	}
++
++	dev_dbg(dev, "%s: x %d, y %d\n", __func__,
++				pdata->x_size, pdata->y_size);
++
++	return pdata;
++}
++#else
++static struct ctw6120_ts_platform_data *ctw6120_parse_dt(struct device *dev)
++{
++	return NULL;
++}
++#endif
++
++static int ctw6120_i2c_ts_probe(struct i2c_client *client,
++					 const struct i2c_device_id *id)
++{
++	const struct ctw6120_ts_platform_data *pdata = client->dev.platform_data;
++	struct device *dev = &client->dev;
++	struct device_node *np = dev->of_node;
++	struct ctw6120_i2c_ts_data *tsdata;
++	struct input_dev *input;
++	int error;
++	unsigned char revid;
++	char reg = 0;
++
++	if (np) {
++		pdata = ctw6120_parse_dt(dev);
++		if (IS_ERR(pdata))
++			return PTR_ERR(pdata);
++	} else if (!pdata) {
++		dev_err(&client->dev, "platform data not defined\n");
++		return -EINVAL;
++	}
++
++	i2c_master_send(client, &reg, 1);
++
++	/* read data from controller */
++	error = i2c_master_recv(client, &revid,  sizeof(revid));
++	if (error != sizeof(revid))
++		return -EIO;
++
++	dev_info(&client->dev, "CTW6120: revid %x touchscreen, irq %d\n", revid, client->irq);
++
++	// Set static pointer to reg zero
++	reg=CTW6120_STATUS_REG;
++	i2c_master_send(client, &reg, 1);
++
++	tsdata = devm_kzalloc(dev, sizeof(*tsdata), GFP_KERNEL);
++	if (!tsdata)
++		return -ENOMEM;
++
++	input = devm_input_allocate_device(dev);
++	if (!input) {
++		dev_err(&client->dev, "Failed to allocate input device\n");
++		return -ENOMEM;
++	}
++
++	tsdata->client = client;
++	tsdata->input = input;
++	tsdata->pdata = pdata;
++
++	input->name = client->name;
++	input->id.bustype = BUS_I2C;
++	input->dev.parent = &client->dev;
++	input->open = ctw6120_input_open;
++	input->close = ctw6120_input_close;
++
++	__set_bit(EV_KEY, input->evbit);
++	__set_bit(EV_ABS, input->evbit);
++	__set_bit(BTN_TOUCH, input->keybit);
++
++	/* set range of the parameters */
++	input_set_abs_params(input, ABS_X, 0, 799, 0, 0);
++	input_set_abs_params(input, ABS_Y, 0, 479, 0, 0);
++	input_set_abs_params(input, ABS_PRESSURE, 0, MAX_12BIT, 0, 0);
++
++	input_set_drvdata(input, tsdata);
++
++	error = devm_request_threaded_irq(dev, client->irq, NULL, ctw6120_ts_isr,
++				     IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
++				     | IRQF_ONESHOT,
++				     client->name, tsdata);
++	if (error) {
++		dev_err(dev, "failed to request irq %d\n", client->irq);
++		return error;
++	}
++
++	/* Stop device till opened */
++	error = ctw6120_stop(tsdata);
++	if (error)
++		return error;
++
++	error = input_register_device(input);
++	if (error)
++		return error;
++
++	i2c_set_clientdata(client, tsdata);
++	device_init_wakeup(&client->dev, 1);
++
++	return 0;
++}
++
++static int ctw6120_i2c_ts_remove(struct i2c_client *client)
++{
++	struct ctw6120_i2c_ts_data *tsdata = i2c_get_clientdata(client);
++
++	device_init_wakeup(&client->dev, 0);
++
++	tsdata->exiting = true;
++	mb();
++
++	return 0;
++}
++
++#ifdef CONFIG_PM_SLEEP
++static int ctw6120_i2c_ts_suspend(struct device *dev)
++{
++	struct i2c_client *client = to_i2c_client(dev);
++	struct ctw6120_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
++
++	if (device_may_wakeup(&client->dev)) {
++		/* need to start device if not open, to be wakeup source */
++		if (!input->users) {
++			ret = ctw6120_start(ts);
++			if (ret)
++				goto unlock;
++		}
++
++		enable_irq_wake(client->irq);
++
++	} else if (input->users) {
++		ret = ctw6120_stop(ts);
++	}
++
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
++}
++
++static int ctw6120_i2c_ts_resume(struct device *dev)
++{
++	struct i2c_client *client = to_i2c_client(dev);
++	struct ctw6120_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
++
++	if (device_may_wakeup(&client->dev)) {
++		disable_irq_wake(client->irq);
++
++		/* need to stop device if it was not open on suspend */
++		if (!input->users) {
++			ret = ctw6120_stop(ts);
++			if (ret)
++				goto unlock;
++		}
++
++	} else if (input->users) {
++		ret = ctw6120_start(ts);
++	}
++
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
++}
++#endif
++
++static SIMPLE_DEV_PM_OPS(ctw6120_dev_pm_ops,
++				ctw6120_i2c_ts_suspend, ctw6120_i2c_ts_resume);
++
++static const struct i2c_device_id ctw6120_i2c_ts_id[] = {
++	{ "ctw6120_tsc", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, ctw6120_i2c_ts_id);
++
++#if defined(CONFIG_OF)
++static const struct of_device_id ctw6120_of_match[] = {
++	{ .compatible = "fsl,ctw6120-tsc", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, ctw6120_of_match);
++#endif
++
++static struct i2c_driver ctw6120_i2c_ts_driver = {
++	.driver = {
++		.owner	= THIS_MODULE,
++		.name	= "ctw6120_tsc",
++		.pm	= &ctw6120_dev_pm_ops,
++		.of_match_table = of_match_ptr(ctw6120_of_match),
++	},
++	.probe		= ctw6120_i2c_ts_probe,
++	.remove		= ctw6120_i2c_ts_remove,
++	.id_table	= ctw6120_i2c_ts_id,
++};
++
++module_i2c_driver(ctw6120_i2c_ts_driver);
++
++MODULE_AUTHOR("Uri Yosef <uri.yf@variscite.com>");
++MODULE_DESCRIPTION("CTW6120 I2C Touchscreen Driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/input/touchscreen/pixcir_i2c_ts.c b/drivers/input/touchscreen/pixcir_i2c_ts.c
+index 6cc6b36..fc49c75 100644
+--- a/drivers/input/touchscreen/pixcir_i2c_ts.c
++++ b/drivers/input/touchscreen/pixcir_i2c_ts.c
+@@ -23,21 +23,51 @@
+ #include <linux/slab.h>
+ #include <linux/i2c.h>
+ #include <linux/input.h>
++#include <linux/input/mt.h>
+ #include <linux/input/pixcir_ts.h>
++#include <linux/gpio.h>
++#include <linux/of.h>
++#include <linux/of_gpio.h>
++#include <linux/of_device.h>
++
++#define PIXCIR_MAX_SLOTS       5 /* Max fingers supported by driver */
+ 
+ struct pixcir_i2c_ts_data {
+ 	struct i2c_client *client;
+ 	struct input_dev *input;
+-	const struct pixcir_ts_platform_data *chip;
+-	bool exiting;
++	const struct pixcir_ts_platform_data *pdata;
++	bool running;
++	int max_fingers;	/* Max fingers supported in this instance */
++};
++
++struct pixcir_touch {
++	int x;
++	int y;
++	int id;
++};
++
++struct pixcir_report_data {
++	int num_touches;
++	struct pixcir_touch touches[PIXCIR_MAX_SLOTS];
+ };
+ 
+-static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
++static void pixcir_ts_parse(struct pixcir_i2c_ts_data *tsdata,
++			    struct pixcir_report_data *report)
+ {
+-	struct pixcir_i2c_ts_data *tsdata = data;
+-	u8 rdbuf[10], wrbuf[1] = { 0 };
++	u8 rdbuf[2 + PIXCIR_MAX_SLOTS * 5];
++	u8 wrbuf[1] = { 0 };
++	u8 *bufptr;
+ 	u8 touch;
+-	int ret;
++	int ret, i;
++	int readsize;
++	const struct pixcir_i2c_chip_data *chip = &tsdata->pdata->chip;
++
++	memset(report, 0, sizeof(struct pixcir_report_data));
++
++	i = chip->has_hw_ids ? 1 : 0;
++	readsize = 2 + tsdata->max_fingers * (4 + i);
++	if (readsize > sizeof(rdbuf))
++		readsize = sizeof(rdbuf);
+ 
+ 	ret = i2c_master_send(tsdata->client, wrbuf, sizeof(wrbuf));
+ 	if (ret != sizeof(wrbuf)) {
+@@ -47,7 +77,7 @@ static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
+ 		return;
+ 	}
+ 
+-	ret = i2c_master_recv(tsdata->client, rdbuf, sizeof(rdbuf));
++	ret = i2c_master_recv(tsdata->client, rdbuf, readsize);
+ 	if (ret != sizeof(rdbuf)) {
+ 		dev_err(&tsdata->client->dev,
+ 			"%s: i2c_master_recv failed(), ret=%d\n",
+@@ -55,44 +85,103 @@ static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
+ 		return;
+ 	}
+ 
+-	touch = rdbuf[0];
+-	if (touch) {
+-		u16 posx1 = (rdbuf[3] << 8) | rdbuf[2];
+-		u16 posy1 = (rdbuf[5] << 8) | rdbuf[4];
+-		u16 posx2 = (rdbuf[7] << 8) | rdbuf[6];
+-		u16 posy2 = (rdbuf[9] << 8) | rdbuf[8];
++	touch = rdbuf[0] & 0x7;
++	if (touch > tsdata->max_fingers)
++		touch = tsdata->max_fingers;
++
++	report->num_touches = touch;
++	bufptr = &rdbuf[2];
++
++	for (i = 0; i < touch; i++) {
++		report->touches[i].x = (bufptr[1] << 8) | bufptr[0];
++		report->touches[i].y = (bufptr[3] << 8) | bufptr[2];
+ 
+-		input_report_key(tsdata->input, BTN_TOUCH, 1);
+-		input_report_abs(tsdata->input, ABS_X, posx1);
+-		input_report_abs(tsdata->input, ABS_Y, posy1);
++		if (chip->has_hw_ids) {
++			report->touches[i].id = bufptr[4];
++			bufptr = bufptr + 5;
++		} else {
++			bufptr = bufptr + 4;
++		}
++	}
++}
++
++static void pixcir_ts_report(struct pixcir_i2c_ts_data *ts,
++			     struct pixcir_report_data *report)
++{
++	struct input_mt_pos pos[PIXCIR_MAX_SLOTS];
++	int slots[PIXCIR_MAX_SLOTS];
++	struct pixcir_touch *touch;
++	int n, i, slot;
++	struct device *dev = &ts->client->dev;
++	const struct pixcir_i2c_chip_data *chip = &ts->pdata->chip;
++
++	n = report->num_touches;
++	if (n > PIXCIR_MAX_SLOTS)
++		n = PIXCIR_MAX_SLOTS;
++
++	if (!chip->has_hw_ids) {
++		for (i = 0; i < n; i++) {
++			touch = &report->touches[i];
++			pos[i].x = touch->x;
++			pos[i].y = touch->y;
++		}
+ 
+-		input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx1);
+-		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy1);
+-		input_mt_sync(tsdata->input);
++		input_mt_assign_slots(ts->input, slots, pos, n);
++	}
+ 
+-		if (touch == 2) {
+-			input_report_abs(tsdata->input,
+-					 ABS_MT_POSITION_X, posx2);
+-			input_report_abs(tsdata->input,
+-					 ABS_MT_POSITION_Y, posy2);
+-			input_mt_sync(tsdata->input);
++	for (i = 0; i < n; i++) {
++		touch = &report->touches[i];
++
++		if (chip->has_hw_ids) {
++			slot = input_mt_get_slot_by_key(ts->input, touch->id);
++			if (slot < 0) {
++				dev_dbg(dev, "no free slot for id 0x%x\n",
++					touch->id);
++				continue;
++			}
++		} else {
++			slot = slots[i];
+ 		}
+-	} else {
+-		input_report_key(tsdata->input, BTN_TOUCH, 0);
++
++		input_mt_slot(ts->input, slot);
++		input_mt_report_slot_state(ts->input,
++					   MT_TOOL_FINGER, true);
++
++		input_event(ts->input, EV_ABS, ABS_MT_POSITION_X, touch->x);
++		input_event(ts->input, EV_ABS, ABS_MT_POSITION_Y, touch->y);
++
++		dev_dbg(dev, "%d: slot %d, x %d, y %d\n",
++			i, slot, touch->x, touch->y);
+ 	}
+ 
+-	input_sync(tsdata->input);
++	input_mt_sync_frame(ts->input);
++	input_sync(ts->input);
+ }
+ 
+ static irqreturn_t pixcir_ts_isr(int irq, void *dev_id)
+ {
+ 	struct pixcir_i2c_ts_data *tsdata = dev_id;
+-
+-	while (!tsdata->exiting) {
+-		pixcir_ts_poscheck(tsdata);
+-
+-		if (tsdata->chip->attb_read_val())
++	const struct pixcir_ts_platform_data *pdata = tsdata->pdata;
++	struct pixcir_report_data report;
++
++	while (tsdata->running) {
++		/* parse packet */
++		pixcir_ts_parse(tsdata, &report);
++
++		/* report it */
++		pixcir_ts_report(tsdata, &report);
++
++		if (gpio_get_value(pdata->gpio_attb)) {
++			if (report.num_touches) {
++				/*
++				 * Last report with no finger up?
++				 * Do it now then.
++				 */
++				input_mt_sync_frame(tsdata->input);
++				input_sync(tsdata->input);
++			}
+ 			break;
++		}
+ 
+ 		msleep(20);
+ 	}
+@@ -100,58 +189,323 @@ static irqreturn_t pixcir_ts_isr(int irq, void *dev_id)
+ 	return IRQ_HANDLED;
+ }
+ 
++static int pixcir_set_power_mode(struct pixcir_i2c_ts_data *ts,
++				 enum pixcir_power_mode mode)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	ret = i2c_smbus_read_byte_data(ts->client, PIXCIR_REG_POWER_MODE);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't read reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_POWER_MODE, ret);
++		return ret;
++	}
++
++	ret &= ~PIXCIR_POWER_MODE_MASK;
++	ret |= mode;
++
++	/* Always AUTO_IDLE */
++	ret |= PIXCIR_POWER_ALLOW_IDLE;
++
++	ret = i2c_smbus_write_byte_data(ts->client, PIXCIR_REG_POWER_MODE, ret);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't write reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_POWER_MODE, ret);
++		return ret;
++	}
++
++	return 0;
++}
++
++/*
++ * Set the interrupt mode for the device i.e. ATTB line behaviour
++ *
++ * @polarity : 1 for active high, 0 for active low.
++ */
++static int pixcir_set_int_mode(struct pixcir_i2c_ts_data *ts,
++			       enum pixcir_int_mode mode, bool polarity)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	ret = i2c_smbus_read_byte_data(ts->client, PIXCIR_REG_INT_MODE);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't read reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_INT_MODE, ret);
++		return ret;
++	}
++
++	ret &= ~PIXCIR_INT_MODE_MASK;
++	ret |= mode;
++
++	if (polarity)
++		ret |= PIXCIR_INT_POL_HIGH;
++	else
++		ret &= ~PIXCIR_INT_POL_HIGH;
++
++	ret = i2c_smbus_write_byte_data(ts->client, PIXCIR_REG_INT_MODE, ret);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't write reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_INT_MODE, ret);
++		return ret;
++	}
++
++	return 0;
++}
++
++/*
++ * Enable/disable interrupt generation
++ */
++static int pixcir_int_enable(struct pixcir_i2c_ts_data *ts, bool enable)
++{
++	struct device *dev = &ts->client->dev;
++	int ret;
++
++	ret = i2c_smbus_read_byte_data(ts->client, PIXCIR_REG_INT_MODE);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't read reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_INT_MODE, ret);
++		return ret;
++	}
++
++	if (enable)
++		ret |= PIXCIR_INT_ENABLE;
++	else
++		ret &= ~PIXCIR_INT_ENABLE;
++
++	ret = i2c_smbus_write_byte_data(ts->client, PIXCIR_REG_INT_MODE, ret);
++	if (ret < 0) {
++		dev_err(dev, "%s: can't write reg 0x%x : %d\n",
++			__func__, PIXCIR_REG_INT_MODE, ret);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int pixcir_start(struct pixcir_i2c_ts_data *ts)
++{
++	struct device *dev = &ts->client->dev;
++	int error;
++
++	/* LEVEL_TOUCH interrupt with active low polarity */
++	error = pixcir_set_int_mode(ts, PIXCIR_INT_LEVEL_TOUCH, 0);
++	if (error) {
++		dev_err(dev, "Failed to set interrupt mode: %d\n", error);
++		return error;
++	}
++
++	ts->running = true;
++	mb();	/* Update status before IRQ can fire */
++
++	/* enable interrupt generation */
++	error = pixcir_int_enable(ts, true);
++	if (error) {
++		dev_err(dev, "Failed to enable interrupt generation: %d\n",
++			error);
++		return error;
++	}
++
++	return 0;
++}
++
++static int pixcir_stop(struct pixcir_i2c_ts_data *ts)
++{
++	int error;
++
++	/* Disable interrupt generation */
++	error = pixcir_int_enable(ts, false);
++	if (error) {
++		dev_err(&ts->client->dev,
++			"Failed to disable interrupt generation: %d\n",
++			error);
++		return error;
++	}
++
++	/* Exit ISR if running, no more report parsing */
++	ts->running = false;
++	mb();	/* update status before we synchronize irq */
++
++	/* Wait till running ISR is complete */
++	synchronize_irq(ts->client->irq);
++
++	return 0;
++}
++
++static int pixcir_input_open(struct input_dev *dev)
++{
++	struct pixcir_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	return pixcir_start(ts);
++}
++
++static void pixcir_input_close(struct input_dev *dev)
++{
++	struct pixcir_i2c_ts_data *ts = input_get_drvdata(dev);
++
++	pixcir_stop(ts);
++}
++
+ #ifdef CONFIG_PM_SLEEP
+ static int pixcir_i2c_ts_suspend(struct device *dev)
+ {
+ 	struct i2c_client *client = to_i2c_client(dev);
++	struct pixcir_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
++
++	if (device_may_wakeup(&client->dev)) {
++		if (!input->users) {
++			ret = pixcir_start(ts);
++			if (ret) {
++				dev_err(dev, "Failed to start\n");
++				goto unlock;
++			}
++		}
+ 
+-	if (device_may_wakeup(&client->dev))
+ 		enable_irq_wake(client->irq);
++	} else if (input->users) {
++		ret = pixcir_stop(ts);
++	}
+ 
+-	return 0;
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
+ }
+ 
+ static int pixcir_i2c_ts_resume(struct device *dev)
+ {
+ 	struct i2c_client *client = to_i2c_client(dev);
++	struct pixcir_i2c_ts_data *ts = i2c_get_clientdata(client);
++	struct input_dev *input = ts->input;
++	int ret = 0;
++
++	mutex_lock(&input->mutex);
+ 
+-	if (device_may_wakeup(&client->dev))
++	if (device_may_wakeup(&client->dev)) {
+ 		disable_irq_wake(client->irq);
+ 
+-	return 0;
++		if (!input->users) {
++			ret = pixcir_stop(ts);
++			if (ret) {
++				dev_err(dev, "Failed to stop\n");
++				goto unlock;
++			}
++		}
++	} else if (input->users) {
++		ret = pixcir_start(ts);
++	}
++
++unlock:
++	mutex_unlock(&input->mutex);
++
++	return ret;
+ }
+ #endif
+ 
+ static SIMPLE_DEV_PM_OPS(pixcir_dev_pm_ops,
+ 			 pixcir_i2c_ts_suspend, pixcir_i2c_ts_resume);
+ 
++#ifdef CONFIG_OF
++static const struct of_device_id pixcir_of_match[];
++
++static struct pixcir_ts_platform_data *pixcir_parse_dt(struct device *dev)
++{
++	struct pixcir_ts_platform_data *pdata;
++	struct device_node *np = dev->of_node;
++	const struct of_device_id *match;
++
++	match = of_match_device(of_match_ptr(pixcir_of_match), dev);
++	if (!match)
++		return ERR_PTR(-EINVAL);
++
++	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
++	if (!pdata)
++		return ERR_PTR(-ENOMEM);
++
++	pdata->chip = *(const struct pixcir_i2c_chip_data *)match->data;
++
++	pdata->gpio_attb = of_get_named_gpio(np, "attb-gpio", 0);
++	/* gpio_attb validity is checked in probe */
++
++	if (of_property_read_u32(np, "touchscreen-size-x", &pdata->x_max)) {
++		dev_err(dev, "Failed to get touchscreen-size-x property\n");
++		return ERR_PTR(-EINVAL);
++	}
++	pdata->x_max -= 1;
++
++	if (of_property_read_u32(np, "touchscreen-size-y", &pdata->y_max)) {
++		dev_err(dev, "Failed to get touchscreen-size-y property\n");
++		return ERR_PTR(-EINVAL);
++	}
++	pdata->y_max -= 1;
++
++	dev_dbg(dev, "%s: x %d, y %d, gpio %d\n", __func__,
++		pdata->x_max + 1, pdata->y_max + 1, pdata->gpio_attb);
++
++	return pdata;
++}
++#else
++static struct pixcir_ts_platform_data *pixcir_parse_dt(struct device *dev)
++{
++	return ERR_PTR(-EINVAL);
++}
++#endif
++
+ static int pixcir_i2c_ts_probe(struct i2c_client *client,
+ 					 const struct i2c_device_id *id)
+ {
+-	const struct pixcir_ts_platform_data *pdata = client->dev.platform_data;
++	const struct pixcir_ts_platform_data *pdata =
++			dev_get_platdata(&client->dev);
++	struct device *dev = &client->dev;
++	struct device_node *np = dev->of_node;
+ 	struct pixcir_i2c_ts_data *tsdata;
+ 	struct input_dev *input;
+ 	int error;
+ 
++	if (np && !pdata) {
++		pdata = pixcir_parse_dt(dev);
++		if (IS_ERR(pdata))
++			return PTR_ERR(pdata);
++	}
++
+ 	if (!pdata) {
+ 		dev_err(&client->dev, "platform data not defined\n");
+ 		return -EINVAL;
+ 	}
+ 
+-	tsdata = kzalloc(sizeof(*tsdata), GFP_KERNEL);
+-	input = input_allocate_device();
+-	if (!tsdata || !input) {
+-		dev_err(&client->dev, "Failed to allocate driver data!\n");
+-		error = -ENOMEM;
+-		goto err_free_mem;
++	if (!gpio_is_valid(pdata->gpio_attb)) {
++		dev_err(dev, "Invalid gpio_attb in pdata\n");
++		return -EINVAL;
++	}
++
++	if (!pdata->chip.max_fingers) {
++		dev_err(dev, "Invalid max_fingers in pdata\n");
++		return -EINVAL;
++	}
++
++	tsdata = devm_kzalloc(dev, sizeof(*tsdata), GFP_KERNEL);
++	if (!tsdata)
++		return -ENOMEM;
++
++	input = devm_input_allocate_device(dev);
++	if (!input) {
++		dev_err(dev, "Failed to allocate input device\n");
++		return -ENOMEM;
+ 	}
+ 
+ 	tsdata->client = client;
+ 	tsdata->input = input;
+-	tsdata->chip = pdata;
++	tsdata->pdata = pdata;
+ 
+ 	input->name = client->name;
+ 	input->id.bustype = BUS_I2C;
++	input->open = pixcir_input_open;
++	input->close = pixcir_input_close;
+ 	input->dev.parent = &client->dev;
+ 
+ 	__set_bit(EV_KEY, input->evbit);
+@@ -162,60 +516,98 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
+ 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, pdata->x_max, 0, 0);
+ 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, pdata->y_max, 0, 0);
+ 
++	tsdata->max_fingers = tsdata->pdata->chip.max_fingers;
++	if (tsdata->max_fingers > PIXCIR_MAX_SLOTS) {
++		tsdata->max_fingers = PIXCIR_MAX_SLOTS;
++		dev_info(dev, "Limiting maximum fingers to %d\n",
++			 tsdata->max_fingers);
++	}
++
++	error = input_mt_init_slots(input, tsdata->max_fingers,
++				    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
++	if (error) {
++		dev_err(dev, "Error initializing Multi-Touch slots\n");
++		return error;
++	}
++
+ 	input_set_drvdata(input, tsdata);
+ 
+-	error = request_threaded_irq(client->irq, NULL, pixcir_ts_isr,
+-				     IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+-				     client->name, tsdata);
++	error = devm_gpio_request_one(dev, pdata->gpio_attb,
++				      GPIOF_DIR_IN, "pixcir_i2c_attb");
+ 	if (error) {
+-		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
+-		goto err_free_mem;
++		dev_err(dev, "Failed to request ATTB gpio\n");
++		return error;
+ 	}
+ 
++	error = devm_request_threaded_irq(dev, client->irq, NULL, pixcir_ts_isr,
++					  IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
++					  client->name, tsdata);
++	if (error) {
++		dev_err(dev, "failed to request irq %d\n", client->irq);
++		return error;
++	}
++
++	/* Always be in IDLE mode to save power, device supports auto wake */
++	error = pixcir_set_power_mode(tsdata, PIXCIR_POWER_IDLE);
++	if (error) {
++		dev_err(dev, "Failed to set IDLE mode\n");
++		return error;
++	}
++
++	/* Stop device till opened */
++	error = pixcir_stop(tsdata);
++	if (error)
++		return error;
++
+ 	error = input_register_device(input);
+ 	if (error)
+-		goto err_free_irq;
++		return error;
+ 
+ 	i2c_set_clientdata(client, tsdata);
+ 	device_init_wakeup(&client->dev, 1);
+ 
+ 	return 0;
+-
+-err_free_irq:
+-	free_irq(client->irq, tsdata);
+-err_free_mem:
+-	input_free_device(input);
+-	kfree(tsdata);
+-	return error;
+ }
+ 
+ static int pixcir_i2c_ts_remove(struct i2c_client *client)
+ {
+-	struct pixcir_i2c_ts_data *tsdata = i2c_get_clientdata(client);
+-
+ 	device_init_wakeup(&client->dev, 0);
+ 
+-	tsdata->exiting = true;
+-	mb();
+-	free_irq(client->irq, tsdata);
+-
+-	input_unregister_device(tsdata->input);
+-	kfree(tsdata);
+-
+ 	return 0;
+ }
+ 
+ static const struct i2c_device_id pixcir_i2c_ts_id[] = {
+ 	{ "pixcir_ts", 0 },
++	{ "pixcir_tangoc", 0 },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(i2c, pixcir_i2c_ts_id);
+ 
++#ifdef CONFIG_OF
++static const struct pixcir_i2c_chip_data pixcir_ts_data = {
++	.max_fingers = 2,
++	/* no hw id support */
++};
++
++static const struct pixcir_i2c_chip_data pixcir_tangoc_data = {
++	.max_fingers = 5,
++	.has_hw_ids = true,
++};
++
++static const struct of_device_id pixcir_of_match[] = {
++	{ .compatible = "pixcir,pixcir_ts", .data = &pixcir_ts_data },
++	{ .compatible = "pixcir,pixcir_tangoc", .data = &pixcir_tangoc_data },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, pixcir_of_match);
++#endif
++
+ static struct i2c_driver pixcir_i2c_ts_driver = {
+ 	.driver = {
+ 		.owner	= THIS_MODULE,
+ 		.name	= "pixcir_ts",
+ 		.pm	= &pixcir_dev_pm_ops,
++		.of_match_table = of_match_ptr(pixcir_of_match),
+ 	},
+ 	.probe		= pixcir_i2c_ts_probe,
+ 	.remove		= pixcir_i2c_ts_remove,
+diff --git a/include/linux/i2c/ctw6120.h b/include/linux/i2c/ctw6120.h
+new file mode 100644
+index 0000000..2d86183
+--- /dev/null
++++ b/include/linux/i2c/ctw6120.h
+@@ -0,0 +1,77 @@
++/*
++ * ctw6120.h - header for CTW6120 touch
++ *
++ * Copyright (C) 2014 Variscite LTD.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
++ *
++ */
++
++#ifndef __CTW6120_H_
++#define __CTW6120_H_
++
++#include <linux/types.h>
++
++#define CTW6120_STATUS_REG           0x00
++#define CTW6120_X_HIGH_REG           0x01
++#define CTW6120_X_LOW_REG            0x02
++#define CTW6120_Y_HIGH_REG           0x03
++#define CTW6120_Y_LOW_REG            0x04
++#define CTW6120_BUTTON_REG           0x05
++#define CTW6120_MOVEMENT_REG         0x06
++#define CTW6120_GESTURE_REG          0x09
++#define CTW6120_SLEEP_MODE_REG       0x0A
++#define CTW6120_SENSITIVITY_REG      0x0B
++#define CTW6120_FIRMWARE_REG         0x0C
++
++#define CTW6120_STATUS_NO_FINGERS    0
++#define CTW6120_STATUS_1_FINGER      1
++#define CTW6120_STATUS_2_FINGERS     2
++
++#define CTW6120_BUTTON_LEFT          1
++#define CTW6120_BUTTON_RIGHT         2
++#define CTW6120_BUTTON_MID           4
++
++#define CTW6120_ZOOM_IN              1
++#define CTW6120_ZOOM_OUT            -1
++
++#define CTW6120_GESTURE_NONE             0x00
++#define CTW6120_GESTURE_ZOOM_IN          0x01
++#define CTW6120_GESTURE_ZOOM_OUT         0x02
++#define CTW6120_GESTURE_ST_PAN_UP        0x03
++#define CTW6120_GESTURE_ST_ROTATE_CW     0x04
++#define CTW6120_GESTURE_ST_PAN_RIGHT     0x05
++#define CTW6120_GESTURE_ST_PAN_DOWN      0x06
++#define CTW6120_GESTURE_ST_PAN_LEFT	     0x07
++#define CTW6120_GESTURE_ST_ROTATE_CCW    0x08
++#define CTW6120_GESTURE_ST_CLICK         0x09
++#define CTW6120_GESTURE_MT_PAN_UP        0x0A
++#define CTW6120_GESTURE_MT_PAN_RIGHT     0x0B
++#define CTW6120_GESTURE_MT_PAN_DOWN      0x0C
++#define CTW6120_GESTURE_MT_PAN_LEFT      0x0D
++#define CTW6120_GESTURE_ST_DOUBLE_CLICK  0x0E
++#define CTW6120_GESTURE_MT_CLICK         0x0F
++
++#define CTW6120_GESTURE_ZOOM             ((CTW6120_GESTURE_ZOOM_IN) | (CTW6120_GESTURE_ZOOM_OUT))
++
++#define CTW6120_SLEEP_ENTER              0x01
++#define CTW6120_SLEEP_ESCAPE             0x00
++
++struct ctw6120_ts_platform_data {
++	unsigned int x_size;	/* X axis resolution */
++	unsigned int y_size;	/* Y axis resolution */
++};
++
++#endif /* __CTW6120_H_ */
+-- 
+1.8.3.1
+

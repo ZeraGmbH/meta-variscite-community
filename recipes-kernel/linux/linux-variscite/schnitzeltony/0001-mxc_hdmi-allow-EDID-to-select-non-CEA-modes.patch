@@ -1,0 +1,47 @@
+From 06d5731300357b0ff3547acdf26419088d5b3510 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Fri, 7 Nov 2014 10:55:09 +0100
+Subject: [PATCH 2/4] mxc_hdmi: allow EDID to select non CEA modes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/video/mxc/mxc_hdmi.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/video/mxc/mxc_hdmi.c b/drivers/video/mxc/mxc_hdmi.c
+index 8ea7d0d..8352248 100644
+--- a/drivers/video/mxc/mxc_hdmi.c
++++ b/drivers/video/mxc/mxc_hdmi.c
+@@ -71,9 +71,6 @@
+ #define HDMI_EDID_SAME		-2
+ #define HDMI_EDID_NO_MODES	-3
+ 
+-#define NUM_CEA_VIDEO_MODES	64
+-#define DEFAULT_VIDEO_MODE	16 /* 1080P */
+-
+ #define RGB			0
+ #define YCBCR444		1
+ #define YCBCR422_16BITS		2
+@@ -1798,13 +1795,13 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
+ 		/*
+ 		 * We might check here if mode is supported by HDMI.
+ 		 * We do not currently support interlaced modes.
+-		 * And add CEA modes in the modelist.
+ 		 */
+ 		mode = &hdmi->fbi->monspecs.modedb[i];
+ 
+ 		if (!(mode->vmode & FB_VMODE_INTERLACED) &&
+-				(mxc_edid_mode_to_vic(mode) != 0)) {
+-
++				mode->xres <= 1920 &&
++				mode->yres <= 1080 &&
++				mode->flag & FB_MODE_IS_STANDARD) {
+ 			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
+ 			dev_dbg(&hdmi->pdev->dev,
+ 				"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
+-- 
+1.8.3.1
+
