@@ -1,0 +1,15 @@
+* warmstart fails (governor on-demand??)
+* change screen resolution
+* check graphics acceleration
+* udev-rule for boot partition
+* boot from nand
+* boot from sata
+* alsa devices missing
+* bluetooth
+
+
+Tests:
+* eth: OK
+* wlan (client+host-ap): OK
+* hdmi: OK (see above)
+
