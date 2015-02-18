@@ -6,7 +6,8 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-It is in mainline but this one was taken from
+It is in mainline since a608026eacaee59cf0f1fa5caad60320f5b4a373. This is a
+backport and was taken from
 git://github.com/varigit/linux-2.6-imx.git branch imx_3.10.17_1.0.0_ga_beta_var2
 
 Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
