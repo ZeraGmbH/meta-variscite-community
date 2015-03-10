@@ -19,6 +19,13 @@ SRC_URI += " \
     file://upstream-backport/0002-add-CTW1620-based-touchscreens-support.patch \
     file://upstream-backport/0003-mmc-core-Update-the-ext-csd.rev-check-for-eMMC5.1.patch \
     file://upstream-backport/0004-MLK-10227-video-mxsfb-Correct-interrupt-handling.patch \
+    file://upstream-backport/weim/0001-drivers-bus-imx-weim-Remove-private-driver-data.patch \
+    file://upstream-backport/weim/0002-drivers-bus-imx-weim-Simplify-error-path.patch \
+    file://upstream-backport/weim/0003-drivers-bus-imx-weim-use-module_platform_driver_prob.patch \
+    file://upstream-backport/weim/0004-drivers-bus-imx-weim-Add-missing-platform_driver.own.patch \
+    file://upstream-backport/weim/0005-drivers-bus-imx-weim-Add-support-for-i.MX1-21-25-27-.patch \
+    file://upstream-backport/weim/0006-bus-imx-weim-support-CS-GPR-configuration.patch \
+    file://upstream-backport/weim/0007-bus-imx-weim-populate-devices-on-a-simple-bus.patch \
     \
     file://boundarydevices/0001-Add-ft5x06-cap-touch-driver.patch \
     \
