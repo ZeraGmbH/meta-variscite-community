@@ -17,7 +17,7 @@ inherit fsl-u-boot-localversion
 LOCALVERSION = "+variscite-imx6"
 SCMVERSION = "n"
 
-COMPATIBLE_MACHINE = "(varsomimx6dl|varsomimx6q|varsomimx6q2|varsomimx6solo)"
+COMPATIBLE_MACHINE = "(mx6)"
 
 # save UBOOT_CONFIG as separate names
 do_deploy_append() {
