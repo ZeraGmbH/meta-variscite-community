@@ -1,0 +1,50 @@
+From 54774bfbd3bd8751b0c65de5888166d14a2deaa7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 28 May 2015 11:56:18 +0200
+Subject: [PATCH] imx6q-cpufreq.c: call mutex_init before registering
+ imx6q_cpufreq_driver
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+fixes kernel oops
+[    2.805469] [<806bf1a8>] (__mutex_lock_slowpath) from [<806bf2ec>] (mutex_lock+0x50/0x54)
+[    2.813670] [<806bf2ec>] (mutex_lock) from [<804b8c20>] (imx6q_set_target+0x1c/0x480)
+[    2.821525] [<804b8c20>] (imx6q_set_target) from [<804b24f0>] (__cpufreq_driver_target+0x14c/0x1c8)
+[    2.830588] [<804b24f0>] (__cpufreq_driver_target) from [<804b838c>] (dbs_check_cpu+0x174/0x17c)
+[    2.839388] [<804b838c>] (dbs_check_cpu) from [<804b86e4>] (cpufreq_governor_dbs+0x268/0x6c4)
+[    2.847928] [<804b86e4>] (cpufreq_governor_dbs) from [<804b1b50>] (__cpufreq_governor+0x150/0x23c)
+[    2.856904] [<804b1b50>] (__cpufreq_governor) from [<804b3384>] (cpufreq_init_policy+0x58/0x80)
+[    2.865618] [<804b3384>] (cpufreq_init_policy) from [<804b3b30>] (__cpufreq_add_dev.isra.27+0x784/0x85c)
+[    2.875115] [<804b3b30>] (__cpufreq_add_dev.isra.27) from [<8036dfec>] (subsys_interface_register+0x94/0xd8)
+[    2.884958] [<8036dfec>] (subsys_interface_register) from [<804b3f70>] (cpufreq_register_driver+0xc4/0x218)
+[    2.894714] [<804b3f70>] (cpufreq_register_driver) from [<804b961c>] (imx6q_cpufreq_probe+0x4b8/0x624)
+[    2.904038] [<804b961c>] (imx6q_cpufreq_probe) from [<80370e10>] (platform_drv_probe+0x44/0xa4)
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/cpufreq/imx6q-cpufreq.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpufreq/imx6q-cpufreq.c b/drivers/cpufreq/imx6q-cpufreq.c
+index e62ef8a..3de0dda 100644
+--- a/drivers/cpufreq/imx6q-cpufreq.c
++++ b/drivers/cpufreq/imx6q-cpufreq.c
+@@ -406,13 +406,13 @@ soc_opp_out:
+ 	if (ret > 0)
+ 		transition_latency += ret * 1000;
+ 
++	mutex_init(&set_cpufreq_lock);
+ 	ret = cpufreq_register_driver(&imx6q_cpufreq_driver);
+ 	if (ret) {
+ 		dev_err(cpu_dev, "failed register driver: %d\n", ret);
+ 		goto free_freq_table;
+ 	}
+ 
+-	mutex_init(&set_cpufreq_lock);
+ 	register_pm_notifier(&imx6_cpufreq_pm_notifier);
+ 
+ 	of_node_put(np);
+-- 
+1.9.3
+
