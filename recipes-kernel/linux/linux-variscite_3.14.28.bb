@@ -45,6 +45,7 @@ SRC_URI += " \
     file://upstream-backport/wifi/0019-wlcore-use-correct-LAA-bit.patch \
     file://upstream-backport/wifi/0020-wlcore-fix-copy-paste-bug-assign-from-src-struct-not.patch \
     file://upstream-backport/mmc/0001-mmc-sdhci-esdhc-imx-Fixup-runtime-PM-conditions-duri.patch \
+    file://upstream-backport/eth/0001-Revert-net-fec-fix-the-warning-found-by-dma-debug.patch \
     \
     file://boundarydevices/0001-Add-ft5x06-cap-touch-driver.patch \
     file://boundarydevices/0002-wlcore-add-initial-device-tree-support-to-the-sdio-m.patch \
