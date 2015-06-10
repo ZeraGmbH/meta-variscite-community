@@ -470,11 +470,11 @@ index 0000000..bae5aec
 +		audio-codec = <&codec>;
 +		audio-routing =
 +			/* Headphone connected to HPLOUT, HPROUT */
-+			"Headphone Jack",       "HPLOUT",
-+			"Headphone Jack",       "HPROUT",
++			"Headphone",       "HPLOUT",
++			"Headphone",       "HPROUT",
 +			/* Line In connected to LINE1L, LINE1R */
-+			"Line In Jack",		"LINE1L",
-+			"Line In Jack",		"LINE1R";
++			"Line In",		"LINE1L",
++			"Line In",		"LINE1R";
 +		mux-int-port = <2>;
 +		mux-ext-port = <3>;
 +	};
