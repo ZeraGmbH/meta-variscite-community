@@ -74,7 +74,7 @@ new file mode 100755
 index 0000000..285c283
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6dl-var-som-solo-vsc.dts
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,86 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -109,12 +109,6 @@ index 0000000..285c283
 +
 +&pxp {
 +	status = "okay";
-+};
-+
-+
-+&gpc {
-+	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
-+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
 +};
 +
 +&ldb {
@@ -172,7 +166,7 @@ new file mode 100755
 index 0000000..7a5e04b
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6dl-var-som-solo.dts
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,41 @@
 +/*
 + * Copyright (C) 2013 Freescale Semiconductor, Inc.
 + *
@@ -213,12 +207,6 @@ index 0000000..7a5e04b
 +
 +&pxp {
 +	status = "okay";
-+};
-+
-+
-+&gpc {
-+	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
-+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
 +};
 diff --git a/arch/arm/boot/dts/imx6dl-var-som.dts b/arch/arm/boot/dts/imx6dl-var-som.dts
 new file mode 100644
