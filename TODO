@@ -1,11 +1,15 @@
 * warmstart fails (governor on-demand??)
-* change screen resolution
-* check graphics acceleration
+* graphics acceleration: poor performance with compositor enabled
 * udev-rule for boot partition
 * boot from nand
 * boot from sata
-* alsa devices missing
 * bluetooth
+* boot:
+[    0.040254] imx6q-pinctrl 20e0000.iomuxc: Pin(MX6Q_PAD_ENET_RXD0) does not support config function
+[    0.040267] imx6q-pinctrl 20e0000.iomuxc: pin_config_set op failed for pin 121
+[    0.040278] imx6q-pinctrl 20e0000.iomuxc: Error applying setting, reverse things back
+[    0.040292] imx6q-pinctrl 20e0000.iomuxc: failed to select default state
+see imx6qdl.dtsi / pcie: pcie@0x01000000 / interrupt-map / <0 0 0 3 &intc 0 121 IRQ_TYPE_LEVEL_HIGH>,
 
 
 Tests:
