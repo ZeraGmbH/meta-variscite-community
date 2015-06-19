@@ -1,0 +1,31 @@
+From bef93803bb20ae438cebc3869027bc582d722583 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 18 Jun 2015 16:04:11 +0200
+Subject: [PATCH] i2c-imx: increase timeout to 500ms
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+we have slow devices here under test
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/i2c/busses/i2c-imx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i2c/busses/i2c-imx.c b/drivers/i2c/busses/i2c-imx.c
+index 6c2ac05..9439b27 100644
+--- a/drivers/i2c/busses/i2c-imx.c
++++ b/drivers/i2c/busses/i2c-imx.c
+@@ -283,7 +283,7 @@ static int i2c_imx_bus_busy(struct imx_i2c_struct *i2c_imx, int for_busy)
+ 
+ static int i2c_imx_trx_complete(struct imx_i2c_struct *i2c_imx)
+ {
+-	wait_event_timeout(i2c_imx->queue, i2c_imx->i2csr & I2SR_IIF, HZ / 10);
++	wait_event_timeout(i2c_imx->queue, i2c_imx->i2csr & I2SR_IIF, HZ / 2);
+ 
+ 	if (unlikely(!(i2c_imx->i2csr & I2SR_IIF))) {
+ 		dev_dbg(&i2c_imx->adapter.dev, "<%s> Timeout\n", __func__);
+-- 
+1.9.3
+
