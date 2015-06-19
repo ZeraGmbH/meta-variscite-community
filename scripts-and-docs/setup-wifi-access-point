@@ -12,9 +12,11 @@
 		SSID: <Your SSID>
 	Wi-Fi-Security Tab
 		Security: WPA & WPA2 Personal
-		Password: <your password>
+		Password: <your password> / select 'Store the password for all users'
 	IPv4 Settings Tab
 		Method: Manual
 		Address: 192.168.15.1 Mask: 255.255.255.0
+	IPv4 Settings Tab
+		Method: Ignore
 
 3. Connect to Hidden Wi-Fi Network -> select name enetered above
