@@ -1,0 +1,31 @@
+From cf2d5cb029554f68ccc8f98e31062e2c6d9722c6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Tue, 23 Jun 2015 11:52:54 +0200
+Subject: [PATCH 2/2] mx6var_som.c: select correct root mmc partition
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+our kernel has no mmc swap dance
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index 7924721..179db21 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -1197,7 +1197,7 @@ int checkboard(void)
+ 	s = getenv ("var_auto_fdt_file");
+ 	if (s[0] != 'Y') return 0;
+ 
+-	setenv("mmcroot" , "/dev/mmcblk0p2 rootwait rw");
++	setenv("mmcroot" , "/dev/mmcblk1p2 rootwait rw");
+ 	if (is_mx6q()){
+ 		if (is_cpu_pop_package()){
+ 			setenv("fdt_file", "imx6q-var-dart.dtb");
+-- 
+1.9.3
+
