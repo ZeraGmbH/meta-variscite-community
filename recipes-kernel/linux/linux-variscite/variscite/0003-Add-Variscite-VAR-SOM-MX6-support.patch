@@ -74,7 +74,7 @@ new file mode 100755
 index 0000000..285c283
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6dl-var-som-solo-vsc.dts
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,85 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -88,7 +88,6 @@ index 0000000..285c283
 +
 +/dts-v1/;
 +
-+#define VAR_SOM_MX6
 +#define VAR_SOM_SOLO_VSC
 +
 +#include "imx6dl.dtsi"
@@ -166,7 +165,7 @@ new file mode 100755
 index 0000000..7a5e04b
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6dl-var-som-solo.dts
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,39 @@
 +/*
 + * Copyright (C) 2013 Freescale Semiconductor, Inc.
 + *
@@ -176,8 +175,6 @@ index 0000000..7a5e04b
 + */
 +
 +/dts-v1/;
-+
-+#define VAR_SOM_MX6
 +
 +#include "imx6dl.dtsi"
 +#include "imx6qdl-var-som.dtsi"
@@ -213,7 +210,7 @@ new file mode 100644
 index 0000000..4ecfea7
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6dl-var-som.dts
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,41 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -226,8 +223,6 @@ index 0000000..4ecfea7
 + */
 +
 +/dts-v1/;
-+
-+#define VAR_SOM_MX6
 +
 +#include "imx6dl.dtsi"
 +#include "imx6qdl-var-som.dtsi"
@@ -277,7 +272,7 @@ new file mode 100755
 index 0000000..a3d6857
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6q-var-som.dts
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,55 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -294,8 +289,6 @@ index 0000000..a3d6857
 + */
 +
 +/dts-v1/;
-+
-+#define VAR_SOM_MX6
 +
 +#include "imx6q.dtsi"
 +#include "imx6qdl-var-som.dtsi"
