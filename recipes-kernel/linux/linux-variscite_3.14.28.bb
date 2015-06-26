@@ -55,6 +55,7 @@ SRC_URI += " \
     file://schnitzeltony/0002-fbmon.c-enable-verbose-debug.patch \
     file://schnitzeltony/0003-imx6q-cpufreq.c-call-mutex_init-before-registering-i.patch \
     file://schnitzeltony/0004-i2c-imx-increase-timeout-to-500ms.patch \
+    file://schnitzeltony/0005-mxc-video-add-note-for-successful-loaded-settings.patch \
     \
     file://variscite/0001-Add-SoC-Audio-support-for-i.MX-boards-with-tlv320aic.patch \
     file://variscite/0002-add-pin-regulator-debug.patch \

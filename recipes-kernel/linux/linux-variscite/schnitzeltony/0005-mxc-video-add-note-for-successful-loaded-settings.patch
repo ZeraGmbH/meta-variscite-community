@@ -1,0 +1,28 @@
+From a58129e4f2604e43dbecfc3643450554bb0ea19f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Fri, 26 Jun 2015 12:55:16 +0200
+Subject: [PATCH] mxc video: add note for successful loaded settings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ drivers/video/mxc/mxc_ipuv3_fb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/video/mxc/mxc_ipuv3_fb.c b/drivers/video/mxc/mxc_ipuv3_fb.c
+index 1fbfc9d..911d5a3 100644
+--- a/drivers/video/mxc/mxc_ipuv3_fb.c
++++ b/drivers/video/mxc/mxc_ipuv3_fb.c
+@@ -1973,6 +1973,7 @@ static int mxcfb_option_setup(struct platform_device *pdev, struct fb_info *fbi)
+ 		dev_err(&pdev->dev, "Can't get fb option for %s!\n", name);
+ 		return -ENODEV;
+ 	}
++	dev_info(&pdev->dev, "Settings found for %s\n", name);
+ 
+ 	if (!options || !*options)
+ 		return 0;
+-- 
+1.9.3
+
