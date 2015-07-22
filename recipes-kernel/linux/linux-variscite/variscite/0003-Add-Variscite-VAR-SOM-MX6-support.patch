@@ -476,7 +476,7 @@ index 0000000..bae5aec
 +#else
 +		interface_pix_fmt = "RGB24";
 +#endif
-+		default_bpp = <16>;
++		default_bpp = <32>;
 +		int_clk = <0>;
 +		late_init = <0>;
 +		status = "disabled";
@@ -487,7 +487,7 @@ index 0000000..bae5aec
 +		disp_dev = "hdmi";
 +		interface_pix_fmt = "RGB24";
 +		mode_str ="1920x1080M@60";
-+		default_bpp = <24>;
++		default_bpp = <32>;
 +		int_clk = <0>;
 +		late_init = <0>;
 +		status = "disabled";
