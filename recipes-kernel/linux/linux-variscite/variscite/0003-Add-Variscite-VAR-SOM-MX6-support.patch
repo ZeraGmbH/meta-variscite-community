@@ -333,7 +333,7 @@ new file mode 100755
 index 0000000..bae5aec
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6qdl-var-som.dtsi
-@@ -0,0 +1,1013 @@
+@@ -0,0 +1,1017 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -350,6 +350,8 @@ index 0000000..bae5aec
 + *
 + */
 +
++#include <dt-bindings/input/input.h>
++
 +/ {
 +	aliases {
 +		mxcfb0 = &mxcfb1;
@@ -364,9 +366,12 @@ index 0000000..bae5aec
 +
 +	regulators {
 +		compatible = "simple-bus";
++		#address-cells = <1>;
++		#size-cells = <0>;
 +
-+		reg_usb_otg_vbus: usb_otg_vbus {
++		reg_usb_otg_vbus: regulator@0 {
 +			compatible = "regulator-fixed";
++			reg = <0>;
 +			regulator-name = "usb_otg_vbus";
 +			regulator-min-microvolt = <5000000>;
 +			regulator-max-microvolt = <5000000>;
@@ -376,8 +381,9 @@ index 0000000..bae5aec
 +			enable-active-high;
 +		};
 +
-+		reg_usb_h1_vbus: usb_h1_vbus {
++		reg_usb_h1_vbus: regulator@1 {
 +			compatible = "regulator-fixed";
++			reg = <1>;
 +			regulator-name = "usb_h1_vbus";
 +			regulator-min-microvolt = <5000000>;
 +			regulator-max-microvolt = <5000000>;
@@ -387,13 +393,14 @@ index 0000000..bae5aec
 +#endif
 +		};
 +
-+		reg_audio: tlv320aic3x_supply {
++		reg_audio: regulator@2 {
 +			compatible = "regulator-fixed";
++			reg = <2>;
 +			regulator-name = "tlv320aic3x-supply";
 +			enable-active-high;
 +		};
 +
-+		reg_3p3v: 3p3v {
++		reg_3p3v: regulator@3 {
 +			compatible = "regulator-fixed";
 +			regulator-name = "3P3V";
 +			regulator-min-microvolt = <3300000>;
@@ -440,14 +447,15 @@ index 0000000..bae5aec
 +		power {
 +			label = "Back";
 +			gpios = <&gpio5 20 0>;
-+			linux,code = <158>; /* KEY_BACK */
++			linux,code = <KEY_BACK>; /* KEY_BACK */
++			gpio-key,wakeup;
 +		};
 +	};
 +#endif	
 +	sound {
 +		compatible = "fsl,imx6q-var-som-tlv320aic3x", "fsl,imx-audio-tlv320aic3x";
 +		model = "tlv320aic3x-audio";
-+		ssi-controller = <&ssi2>;
++		cpu-dai = <&ssi2>;
 +		audio-codec = <&codec>;
 +		audio-routing =
 +			/* Headphone connected to HPLOUT, HPROUT */
@@ -514,21 +522,24 @@ index 0000000..bae5aec
 +		status = "disabled";
 +	};
 +
++#if 0
 +	lcd@0 {
 +		compatible = "fsl,lcd";
 +		ipu_id = <0>;
 +		disp_id = <0>;
 +		default_ifmt = "RGB565";
-+//		pinctrl-names = "default";
-+//		pinctrl-0 = <&pinctrl_ipu1_1>;
-+		status = "disabled";
++		pinctrl-names = "default";
++		pinctrl-0 = <&pinctrl_ipu1>;
++		status = "okay";
 +	};
++#endif
 +
 +	backlight {
 +		compatible = "pwm-backlight";
 +		pwms = <&pwm2 0 50000>;
 +		brightness-levels = <0 4 8 16 32 64 128 248>;
 +		default-brightness-level = <7>;
++		status = "okay";
 +	};
 +
 +	v4l2_cap_0 {
@@ -581,28 +592,6 @@ index 0000000..bae5aec
 +	soc-supply = <&sw1c_reg>;
 +};
 +
-+#ifdef SPIDEV
-+&ecspi1 {
-+	fsl,spi-num-chipselects = <1>;
-+	cs-gpios = <&gpio4 9 0>;
-+	pinctrl-names = "default";
-+	pinctrl-0 = <&pinctrl_ecspi1_2>;
-+	status = "okay";
-+
-+        chip1: spidev@0 {
-+               compatible = "spidev";
-+               spi-max-frequency = <12000000>;
-+               reg = <0>;
-+        };
-+/*
-+        chip2: spidev@1 {
-+               compatible = "spidev";
-+               spi-max-frequency = <20000000>;
-+               reg = <1>;
-+	};
-+*/
-+};
-+#endif
 +
 +&ecspi3 {
 +	fsl,spi-num-chipselects = <1>;
@@ -611,6 +600,7 @@ index 0000000..bae5aec
 +	pinctrl-0 = <&pinctrl_ecspi3_1>;
 +	status = "okay";
 +
++#ifndef VAR_SOM_SOLO_VSC
 +	ads7846@0 {
 +		reg = <0>;	/* CS0 */
 +		compatible = "ti,ads7846";
@@ -632,33 +622,13 @@ index 0000000..bae5aec
 +		ti,keep-vref-on;	
 +		linux,wakeup;
 +		};
++#endif
 +};
 +
 +&fec {
 +	pinctrl-names = "default";
 +	pinctrl-0 = <&pinctrl_enet_4>;
 +	phy-mode = "rgmii";
-+	status = "okay";
-+};
-+
-+&gpc {
-+	fsl,ldo-bypass = <1>; /* use ldo-bypass, u-boot will check it and configure */
-+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
-+};
-+
-+&hdmi_audio {
-+	status = "okay";
-+};
-+
-+&hdmi_core {
-+	ipu_id = <0>;
-+	disp_id = <1>;
-+	status = "okay";
-+};
-+
-+&hdmi_video {
-+	fsl,phy_reg_vlev = <0x0294>;
-+	fsl,phy_reg_cksymtx = <0x800d>;
 +	status = "okay";
 +};
 +
@@ -1073,6 +1043,12 @@ index 0000000..bae5aec
 +#endif
 +			>;
 +		};
++		pinctrl_hdmi_cec: hdmicecgrp {
++			fsl,pins = <
++				MX6QDL_PAD_KEY_ROW2__HDMI_TX_CEC_LINE 0x1f8b0
++			>;
++		};
++
 +		pinctrl_i2c1: i2c1grp-2 {
 +			fsl,pins = <
 +				MX6QDL_PAD_CSI0_DAT8__I2C1_SDA 0x4001b8b1
@@ -1100,6 +1076,46 @@ index 0000000..bae5aec
 +			>;
 +		};
 +	};
++};
++
++&dcic1 {
++	dcic_id = <0>;
++	dcic_mux = "dcic-hdmi";
++	status = "okay";
++};
++
++&dcic2 {
++	dcic_id = <1>;
++	dcic_mux = "dcic-lvds1";
++	status = "okay";
++};
++
++&gpc {
++	/* use ldo-bypass, u-boot will check it and configure */
++	fsl,ldo-bypass = <1>;
++	fsl,wdog-reset = <1>;
++};
++
++&hdmi_audio {
++	status = "okay";
++};
++
++&hdmi_cec {
++       pinctrl-names = "default";
++       pinctrl-0 = <&pinctrl_hdmi_cec>;
++       status = "okay";
++};
++
++&hdmi_core {
++	ipu_id = <0>;
++	disp_id = <1>;
++	status = "okay";
++};
++
++&hdmi_video {
++	fsl,phy_reg_vlev = <0x0294>;
++	fsl,phy_reg_cksymtx = <0x800d>;
++	status = "okay";
 +};
 +
 +&ldb {
@@ -1174,18 +1190,6 @@ index 0000000..bae5aec
 +	csi_id = <1>;
 +	v_channel = <0>;
 +	lanes = <2>;
-+};
-+
-+&dcic1 {
-+	dcic_id = <0>;
-+	dcic_mux = "dcic-hdmi";
-+	status = "okay";
-+};
-+
-+&dcic2 {
-+	dcic_id = <1>;
-+	dcic_mux = "dcic-lvds0";
-+	status = "okay";
 +};
 +
 +&pcie {

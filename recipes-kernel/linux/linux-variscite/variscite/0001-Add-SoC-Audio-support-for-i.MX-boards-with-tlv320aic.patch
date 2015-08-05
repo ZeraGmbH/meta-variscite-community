@@ -498,7 +498,7 @@ index 0000000..79024ba
 +		return ret;
 +	}
 +
-+	ssi_np = of_parse_phandle(pdev->dev.of_node, "ssi-controller", 0);
++	ssi_np = of_parse_phandle(pdev->dev.of_node, "cpu-dai", 0);
 +	codec_np = of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
 +	if (!ssi_np || !codec_np) {
 +		dev_err(&pdev->dev, "phandle missing or invalid\n");
