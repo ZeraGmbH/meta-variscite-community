@@ -272,7 +272,7 @@ new file mode 100755
 index 0000000..a3d6857
 --- /dev/null
 +++ b/arch/arm/boot/dts/imx6q-var-som.dts
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,47 @@
 +/*
 + * Copyright (C) 2014 Variscite, Ltd. All Rights Reserved
 + * Donio Ron: ron.d@variscite.com
@@ -314,14 +314,6 @@ index 0000000..a3d6857
 +};
 +
 +&mxcfb2 {
-+	status = "okay";
-+};
-+
-+&mxcfb3 {
-+	status = "okay";
-+};
-+
-+&mxcfb4 {
 +	status = "okay";
 +};
 +
