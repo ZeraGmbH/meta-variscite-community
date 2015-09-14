@@ -4,6 +4,7 @@
 
 # we grab meta-fsl-arm patches here
 FILESEXTRAPATHS_append := ":${BBPATH}"
+META_FSL_ARM_PATCH_FOLDER = "recipes-kernel/linux/linux-imx-3.14.38"
 
 require recipes-kernel/linux/linux-imx.inc
 require recipes-kernel/linux/linux-dtb.inc
@@ -12,13 +13,12 @@ DEPENDS += "lzop-native bc-native"
 
 COMPATIBLE_MACHINE = "(mx6)"
 
-SRCBRANCH = "imx_3.14.28_1.0.0_ga"
-SRCREV = "91cf351a2afc17ac4a260e4d2ad1e32d00925a1b"
+SRCBRANCH = "imx_3.14.38_6qp_beta"
+SRCREV = "a4dec7730c98f2639fe250a1a67f782b6f73bdf5"
 
 SRC_URI += " \
-    file://meta-fsl-arm-old/0001-ARM-imx6q-drop-unnecessary-semicolon.patch \
-    file://meta-fsl-arm-old/0002-ARM-clk-imx6q-fix-video-divider-for-rev-T0-1.0.patch \
-    file://meta-fsl-arm-old/0003-ARM-imx6sl-Disable-imx6sl-specific-code-when-imx6sl-.patch \
+    file://${META_FSL_ARM_PATCH_FOLDER}/0003-ARM-imx6sl-Disable-imx6sl-specific-code-when-imx6sl-.patch \
+    file://${META_FSL_ARM_PATCH_FOLDER}/0004-mmc-sdhci-esdhc-imx-Fixup-runtime-PM-conditions-duri.patch \
     \
     file://upstream-backport/touch/0001-add-CTW1620-based-touchscreens-support.patch \
     file://upstream-backport/weim/0001-bus-imx-weim-support-CS-GPR-configuration.patch \
@@ -43,8 +43,6 @@ SRC_URI += " \
     file://upstream-backport/wifi/0018-wlcore-add-support-for-STA-CSA-with-chan-contexts.patch \
     file://upstream-backport/wifi/0019-wlcore-use-correct-LAA-bit.patch \
     file://upstream-backport/wifi/0020-wlcore-fix-copy-paste-bug-assign-from-src-struct-not.patch \
-    file://upstream-backport/mmc/0001-mmc-sdhci-esdhc-imx-Fixup-runtime-PM-conditions-duri.patch \
-    file://upstream-backport/eth/0001-Revert-net-fec-fix-the-warning-found-by-dma-debug.patch \
     \
     file://boundarydevices/0001-Add-ft5x06-cap-touch-driver.patch \
     file://boundarydevices/0002-wlcore-add-initial-device-tree-support-to-the-sdio-m.patch \
@@ -62,6 +60,8 @@ SRC_URI += " \
     \
 "
 
-LOCALVERSION = "+variscite-1.0.0_ga"
+LOCALVERSION = "+variscite"
 
+# TBD TEST !!!!
+#    file://upstream-backport/eth/0001-Revert-net-fec-fix-the-warning-found-by-dma-debug.patch
 
