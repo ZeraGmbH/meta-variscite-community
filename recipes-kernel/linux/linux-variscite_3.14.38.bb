@@ -20,6 +20,8 @@ SRC_URI += " \
     file://${META_FSL_ARM_PATCH_FOLDER}/0003-ARM-imx6sl-Disable-imx6sl-specific-code-when-imx6sl-.patch \
     file://${META_FSL_ARM_PATCH_FOLDER}/0004-mmc-sdhci-esdhc-imx-Fixup-runtime-PM-conditions-duri.patch \
     \
+    file://upstream-backport/0001-ARM-8158-1-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
+    file://upstream-backport/0002-ARM-LLVMLinux-Change-extern-inline-to-static-inline-.patch \
     file://upstream-backport/touch/0001-add-CTW1620-based-touchscreens-support.patch \
     file://upstream-backport/weim/0001-bus-imx-weim-support-CS-GPR-configuration.patch \
     file://upstream-backport/weim/0002-bus-imx-weim-populate-devices-on-a-simple-bus.patch \
