@@ -13,7 +13,7 @@ SRC_URI = " \
     file://0002-mx6var_som.c-remove-solo-custom-board-support.patch \
     file://0003-mx6var_som.c-select-correct-root-mmc-partition.patch \
 "
-SRCREV = "c2f199ce56fc10c5ddd7a2f19446e5f1be71931c"
+SRCREV = "c65c565d6acc27dde27fd7283136d24fd5273884"
 
 S = "${WORKDIR}/git"
 
