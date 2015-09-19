@@ -15,6 +15,7 @@ SRC_URI = " \
     file://0004-asm-io.h-fix-build-with-gcc5.patch \
     file://0005-arm-board-use-__weak.patch \
     file://0006-common-main.c-make-show_boot_progress-__weak.patch \
+    file://0007-arm-Switch-to-mno-unaligned-access-when-supported-by.patch \
 "
 SRCREV = "c65c565d6acc27dde27fd7283136d24fd5273884"
 
