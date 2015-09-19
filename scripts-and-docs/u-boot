@@ -1,2 +1,2 @@
-setenv smp video=mxcfb0:dev=hdmi,1280x1024M@60,if=RGB24 vram=100M
+setenv smp video=mxcfb0:dev=hdmi,1280x1024M@60,if=RGB24
 
