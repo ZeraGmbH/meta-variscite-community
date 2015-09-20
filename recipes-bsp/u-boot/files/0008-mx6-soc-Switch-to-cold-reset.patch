@@ -1,0 +1,53 @@
+From 9d16c52f62a4cd017ac3530002ccc8ea9ffde58f Mon Sep 17 00:00:00 2001
+From: Dirk Behme <dirk.behme@de.bosch.com>
+Date: Mon, 9 Mar 2015 14:48:48 +0100
+Subject: [PATCH] mx6: soc: Switch to cold reset
+
+Disable the warm reset and enable the cold reset for a more reliable
+restart ('reset'). This is taken from the Linux kernel, see imx_src_init()
+in arch/arm/mach-imx/src.c.
+
+Signed-off-by: Dirk Behme <dirk.behme@de.bosch.com>
+---
+ arch/arm/cpu/armv7/mx6/soc.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/arch/arm/cpu/armv7/mx6/soc.c b/arch/arm/cpu/armv7/mx6/soc.c
+index b354f70..dd34138 100644
+--- a/arch/arm/cpu/armv7/mx6/soc.c
++++ b/arch/arm/cpu/armv7/mx6/soc.c
+@@ -288,6 +288,22 @@ static void set_preclk_from_osc(void)
+ }
+ #endif
+ 
++#define SRC_SCR_WARM_RESET_ENABLE	0
++
++static void init_src(void)
++{
++	struct src *src_regs = (struct src *)SRC_BASE_ADDR;
++	u32 val;
++
++	/*
++	 * force warm reset sources to generate cold reset
++	 * for a more reliable restart
++	 */
++	val = readl(&src_regs->scr);
++	val &= ~(1 << SRC_SCR_WARM_RESET_ENABLE);
++	writel(val, &src_regs->scr);
++}
++
+ int arch_cpu_init(void)
+ {
+ 	init_aips();
+@@ -322,6 +338,8 @@ int arch_cpu_init(void)
+ 	mxs_dma_init();
+ #endif
+ 
++	init_src();
++
+ 	return 0;
+ }
+ 
+-- 
+2.1.0
+
