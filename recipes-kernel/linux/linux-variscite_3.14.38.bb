@@ -13,15 +13,14 @@ DEPENDS += "lzop-native bc-native"
 
 COMPATIBLE_MACHINE = "(mx6)"
 
-SRCBRANCH = "imx_3.14.38_6qp_beta"
-SRCREV = "a4dec7730c98f2639fe250a1a67f782b6f73bdf5"
+SRCBRANCH = "imx_3.14.38_6qp_ga"
+SRCREV = "75a01115a7f53d728e6abeb7b205676cc2a50bc0"
 
 SRC_URI += " \
-    file://${META_FSL_ARM_PATCH_FOLDER}/0003-ARM-imx6sl-Disable-imx6sl-specific-code-when-imx6sl-.patch \
     file://${META_FSL_ARM_PATCH_FOLDER}/0004-mmc-sdhci-esdhc-imx-Fixup-runtime-PM-conditions-duri.patch \
+    file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-LLVMLinux-Change-extern-inline-to-static-inline.patch \
+    file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-8158-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
     \
-    file://upstream-backport/0001-ARM-8158-1-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
-    file://upstream-backport/0002-ARM-LLVMLinux-Change-extern-inline-to-static-inline-.patch \
     file://upstream-backport/touch/0001-add-CTW1620-based-touchscreens-support.patch \
     file://upstream-backport/weim/0001-bus-imx-weim-support-CS-GPR-configuration.patch \
     file://upstream-backport/weim/0002-bus-imx-weim-populate-devices-on-a-simple-bus.patch \
@@ -52,9 +51,8 @@ SRC_URI += " \
     \
     file://schnitzeltony/0001-mxc_hdmi-allow-EDID-to-select-non-CEA-modes.patch \
     file://schnitzeltony/0002-fbmon.c-enable-verbose-debug.patch \
-    file://schnitzeltony/0003-imx6q-cpufreq.c-call-mutex_init-before-registering-i.patch \
-    file://schnitzeltony/0004-i2c-imx-increase-timeout-to-500ms.patch \
-    file://schnitzeltony/0005-mxc-video-add-note-for-successful-loaded-settings.patch \
+    file://schnitzeltony/0003-i2c-imx-increase-timeout-to-500ms.patch \
+    file://schnitzeltony/0004-mxc-video-add-note-for-successful-loaded-settings.patch \
     \
     file://variscite/0001-Add-SoC-Audio-support-for-i.MX-boards-with-tlv320aic.patch \
     file://variscite/0002-add-pin-regulator-debug.patch \
