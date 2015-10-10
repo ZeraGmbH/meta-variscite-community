@@ -11,7 +11,7 @@ require recipes-kernel/linux/linux-dtb.inc
 
 DEPENDS += "lzop-native bc-native"
 
-COMPATIBLE_MACHINE = "(mx6)"
+COMPATIBLE_MACHINE_mx6 = "mx6"
 
 SRCBRANCH = "imx_3.14.38_6qp_ga"
 SRCREV = "75a01115a7f53d728e6abeb7b205676cc2a50bc0"
