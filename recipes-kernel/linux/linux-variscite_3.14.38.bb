@@ -21,7 +21,6 @@ SRC_URI += " \
     file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-LLVMLinux-Change-extern-inline-to-static-inline.patch \
     file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-8158-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
     \
-    file://upstream-backport/touch/0001-add-CTW1620-based-touchscreens-support.patch \
     file://upstream-backport/weim/0001-bus-imx-weim-support-CS-GPR-configuration.patch \
     file://upstream-backport/weim/0002-bus-imx-weim-populate-devices-on-a-simple-bus.patch \
     file://upstream-backport/wifi/0001-wlcore-memset-wl-rx_filter_enabled-to-zero-after-rec.patch \
