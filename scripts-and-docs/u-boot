@@ -1,2 +1,5 @@
 setenv smp video=mxcfb0:dev=hdmi,1280x1024M@60,if=RGB24
 
+# our custom LCD
+setenv smp video=mxcfb0:dev=ldb,1024x600@60,if=RGB24
+
