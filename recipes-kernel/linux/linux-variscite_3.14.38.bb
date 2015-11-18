@@ -60,7 +60,3 @@ SRC_URI += " \
 "
 
 LOCALVERSION = "+variscite"
-
-# TBD TEST !!!!
-#    file://upstream-backport/eth/0001-Revert-net-fec-fix-the-warning-found-by-dma-debug.patch
-
