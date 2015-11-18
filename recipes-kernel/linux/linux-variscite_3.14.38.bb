@@ -21,6 +21,8 @@ SRC_URI += " \
     file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-LLVMLinux-Change-extern-inline-to-static-inline.patch \
     file://${META_FSL_ARM_PATCH_FOLDER}/0001-ARM-8158-LLVMLinux-use-static-inline-in-ARM-ftrace.patch \
     \
+    file://upstream-backport/eth/0001-tcp_cubic-better-follow-cubic-curve-after-idle-perio.patch \
+    file://upstream-backport/eth/0002-tcp_cubic-do-not-set-epoch_start-in-the-future.patch \
     file://upstream-backport/weim/0001-bus-imx-weim-support-CS-GPR-configuration.patch \
     file://upstream-backport/weim/0002-bus-imx-weim-populate-devices-on-a-simple-bus.patch \
     file://upstream-backport/wifi/0001-wlcore-memset-wl-rx_filter_enabled-to-zero-after-rec.patch \
