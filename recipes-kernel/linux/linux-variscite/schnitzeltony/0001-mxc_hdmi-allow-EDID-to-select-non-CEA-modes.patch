@@ -6,13 +6,15 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
+While we are here: always print all modes added
+
 Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
 ---
- drivers/video/mxc/mxc_hdmi.c | 9 +++------
- 1 file changed, 3 insertions(+), 6 deletions(-)
+ drivers/video/mxc/mxc_hdmi.c | 12 ++++--------
+ 1 file changed, 4 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/video/mxc/mxc_hdmi.c b/drivers/video/mxc/mxc_hdmi.c
-index 8ea7d0d..8352248 100644
+index 7c636b7..14fdd8e 100644
 --- a/drivers/video/mxc/mxc_hdmi.c
 +++ b/drivers/video/mxc/mxc_hdmi.c
 @@ -71,9 +71,6 @@
@@ -25,7 +27,7 @@ index 8ea7d0d..8352248 100644
  #define RGB			0
  #define YCBCR444		1
  #define YCBCR422_16BITS		2
-@@ -1798,13 +1795,13 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
+@@ -1800,15 +1797,14 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
  		/*
  		 * We might check here if mode is supported by HDMI.
  		 * We do not currently support interlaced modes.
@@ -36,12 +38,15 @@ index 8ea7d0d..8352248 100644
  		if (!(mode->vmode & FB_VMODE_INTERLACED) &&
 -				(mxc_edid_mode_to_vic(mode) != 0)) {
 -
-+				mode->xres <= 1920 &&
-+				mode->yres <= 1080 &&
-+				mode->flag & FB_MODE_IS_STANDARD) {
- 			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
- 			dev_dbg(&hdmi->pdev->dev,
+-			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
+-			dev_dbg(&hdmi->pdev->dev,
++			mode->xres <= 1920 &&
++			mode->yres <= 1080) {
++			dev_info(&hdmi->pdev->dev, "Added mode %d:", i);
++			dev_info(&hdmi->pdev->dev,
  				"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
+ 				hdmi->fbi->monspecs.modedb[i].xres,
+ 				hdmi->fbi->monspecs.modedb[i].yres,
 -- 
-1.8.3.1
+2.1.0
 
