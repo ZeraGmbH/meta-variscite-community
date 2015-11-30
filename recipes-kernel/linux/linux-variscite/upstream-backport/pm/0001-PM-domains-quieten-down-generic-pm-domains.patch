@@ -1,0 +1,45 @@
+From 6d7d5c3266aa946b2049d9fed02186c1a378621b Mon Sep 17 00:00:00 2001
+From: Russell King <rmk+kernel@arm.linux.org.uk>
+Date: Fri, 20 Mar 2015 17:20:28 +0000
+Subject: [PATCH] PM / domains: quieten down generic pm domains
+
+PM domains are rather noisy; scheduling behaviour can cause callbacks
+to take longer, which causes them to spit out a warning-level message
+each time a callback takes a little longer than the previous time.
+There really isn't a need for this, except when debugging.
+
+Acked-by: Ulf Hansson <ulf.hansson@linaro.org>
+Acked-by: Kevin Hilman <khilman@linaro.org>
+Signed-off-by: Russell King <rmk+kernel@arm.linux.org.uk>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+
+Upstream-Status: Backport
+---
+ drivers/base/power/domain.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/base/power/domain.c b/drivers/base/power/domain.c
+index f73320c..bbf9d84 100644
+--- a/drivers/base/power/domain.c
++++ b/drivers/base/power/domain.c
+@@ -236,7 +236,7 @@ static int __pm_genpd_poweron(struct generic_pm_domain *genpd)
+ 			genpd->max_off_time_changed = true;
+ 			genpd_recalc_cpu_exit_latency(genpd);
+ 			if (genpd->name)
+-				pr_warning("%s: Power-on latency exceeded, "
++				pr_debug("%s: Power-on latency exceeded, "
+ 					"new value %lld ns\n", genpd->name,
+ 					elapsed_ns);
+ 		}
+@@ -558,7 +558,7 @@ static int pm_genpd_poweroff(struct generic_pm_domain *genpd)
+ 			genpd->power_off_latency_ns = elapsed_ns;
+ 			genpd->max_off_time_changed = true;
+ 			if (genpd->name)
+-				pr_warning("%s: Power-off latency exceeded, "
++				pr_debug("%s: Power-off latency exceeded, "
+ 					"new value %lld ns\n", genpd->name,
+ 					elapsed_ns);
+ 		}
+-- 
+2.1.0
+
