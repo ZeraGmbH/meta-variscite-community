@@ -1,0 +1,985 @@
+From 4a4f88a5709735e22c34f2bf54984f7f18694538 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Wed, 2 Dec 2015 13:05:43 +0100
+Subject: [PATCH] update voltage switching to fix reboot
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ arch/arm/cpu/armv7/mx6/soc.c            | 68 +++++++++++++++++++++++-------
+ arch/arm/include/asm/arch-mx6/sys_proto.h | 5 +++--
+ board/variscite/mx6var_som/mx6var_som.c | 74 +++++++++++++++++++++++----------
+ 3 files changed, 104 insertions(+), 38 deletions(-)
+
+diff --git a/drivers/power/pmic/Makefile b/drivers/power/pmic/Makefile
+index 11b3d03..5a51b76 100644
+--- a/drivers/power/pmic/Makefile
++++ b/drivers/power/pmic/Makefile
+@@ -15,6 +15,7 @@ COBJS-$(CONFIG_POWER_MUIC_MAX8997) += muic_max8997.o
+ COBJS-$(CONFIG_POWER_MAX77686) += pmic_max77686.o
+ COBJS-$(CONFIG_POWER_TPS65217) += pmic_tps65217.o
+ COBJS-$(CONFIG_POWER_TPS65910) += pmic_tps65910.o
++COBJS-$(CONFIG_POWER_PFUZE100) += pmic_pfuze100.o
+ 
+ COBJS	:= $(COBJS-y)
+ SRCS	:= $(COBJS:.o=.c)
+diff --git a/drivers/power/pmic/pmic_pfuze100.c b/drivers/power/pmic/pmic_pfuze100.c
+new file mode 100644
+index 0000000..22a04c0
+--- /dev/null
++++ b/drivers/power/pmic/pmic_pfuze100.c
+@@ -0,0 +1,32 @@
++/*
++ * Copyright (C) 2014 Gateworks Corporation
++ * Tim Harvey <tharvey@gateworks.com>
++ *
++ * SPDX-License-Identifier:      GPL-2.0+
++ */
++
++#include <common.h>
++#include <errno.h>
++#include <i2c.h>
++#include <power/pmic.h>
++#include <power/pfuze100_pmic.h>
++
++int power_pfuze100_init(unsigned char bus)
++{
++	static const char name[] = "PFUZE100";
++	struct pmic *p = pmic_alloc();
++
++	if (!p) {
++		printf("%s: POWER allocation error!\n", __func__);
++		return -ENOMEM;
++	}
++
++	p->name = name;
++	p->interface = PMIC_I2C;
++	p->number_of_regs = PMIC_NUM_OF_REGS;
++	p->hw.i2c.addr = CONFIG_POWER_PFUZE100_I2C_ADDR;
++	p->hw.i2c.tx_num = 1;
++	p->bus = bus;
++
++	return 0;
++}
+diff --git a/include/configs/mx6var_common.h b/include/configs/mx6var_common.h
+index 5318065..cce1653 100644
+--- a/include/configs/mx6var_common.h
++++ b/include/configs/mx6var_common.h
+@@ -421,6 +421,12 @@
+ #define CONFIG_SPL_I2C_SUPPORT
+ #define CONFIG_VARISCITE_I2C_SYS_BUS_NUM        1
+ 
++/* PMIC */
++#define CONFIG_POWER
++#define CONFIG_POWER_I2C
++#define CONFIG_POWER_PFUZE100
++#define CONFIG_POWER_PFUZE100_I2C_ADDR	0x08
++
+ /* Framebuffer */
+ #if 0
+ #define CONFIG_VIDEO
+diff --git a/board/variscite/common/Makefile b/board/variscite/common/Makefile
+new file mode 100644
+index 0000000..be1d832
+--- /dev/null
++++ b/board/variscite/common/Makefile
+@@ -0,0 +1,48 @@
++#
++# (C) Copyright 2006
++# Wolfgang Denk, DENX Software Engineering, wd@denx.de.
++#
++# SPDX-License-Identifier:	GPL-2.0+
++#
++
++include $(TOPDIR)/config.mk
++
++ifneq ($(OBJTREE),$(SRCTREE))
++$(shell mkdir -p $(obj)board/variscite/common)
++endif
++
++LIB	= $(obj)libvariscite.o
++
++MINIMAL=
++
++ifdef CONFIG_SPL_BUILD
++ifdef CONFIG_SPL_INIT_MINIMAL
++MINIMAL=y
++endif
++endif
++
++ifndef MINIMAL
++ifndef CONFIG_SPL_BUILD
++COBJS-$(CONFIG_POWER_PFUZE100)	+= pfuze.o
++endif
++endif
++
++SRCS	:= $(SOBJS:.o=.S) $(COBJS-y:.o=.c)
++OBJS	:= $(addprefix $(obj),$(COBJS-y))
++SOBJS	:= $(addprefix $(obj),$(SOBJS))
++SUBLIB	:= $(addprefix $(obj),$(SUBLIB-y))
++
++$(LIB):	$(obj).depend $(OBJS) $(SUBLIB)
++	$(call cmd_link_o_target, $(OBJS) $(SUBLIB))
++
++$(SUBLIB): $(obj).depend
++	$(MAKE) -C $(dir $(subst $(obj),,$@))
++
++#########################################################################
++
++# defines $(obj).depend target
++include $(SRCTREE)/rules.mk
++
++sinclude $(obj).depend
++
++#########################################################################
+diff --git a/board/variscite/common/pfuze.c b/board/variscite/common/pfuze.c
+new file mode 100644
+index 0000000..d6a209e
+--- /dev/null
++++ b/board/variscite/common/pfuze.c
+@@ -0,0 +1,92 @@
++/*
++ * Copyright 2014 Freescale Semiconductor, Inc.
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#include <common.h>
++#include <errno.h>
++#include <power/pmic.h>
++#include <power/pfuze100_pmic.h>
++
++int pfuze_mode_init(struct pmic *p, u32 mode)
++{
++	unsigned char offset, i, switch_num;
++	u32 id, ret;
++
++	pmic_reg_read(p, PFUZE100_DEVICEID, &id);
++	id = id & 0xf;
++
++	if (id == 0) {
++		switch_num = 6;
++		offset = PFUZE100_SW1CMODE;
++	} else if (id == 1) {
++		switch_num = 4;
++		offset = PFUZE100_SW2MODE;
++	} else {
++		printf("Not supported, id=%d\n", id);
++		return -EINVAL;
++	}
++
++	ret = pmic_reg_write(p, PFUZE100_SW1ABMODE, mode);
++	if (ret < 0) {
++		printf("Set SW1AB mode error!\n");
++		return ret;
++	}
++
++	for (i = 0; i < switch_num - 1; i++) {
++		ret = pmic_reg_write(p, offset + i * SWITCH_SIZE, mode);
++		if (ret < 0) {
++			printf("Set switch 0x%x mode error!\n",
++			       offset + i * SWITCH_SIZE);
++			return ret;
++		}
++	}
++
++	return ret;
++}
++
++struct pmic *pfuze_common_init(unsigned char i2cbus)
++{
++	struct pmic *p;
++	int ret;
++	unsigned int reg;
++
++	ret = power_pfuze100_init(i2cbus);
++	if (ret)
++		return NULL;
++
++	p = pmic_get("PFUZE100");
++	ret = pmic_probe(p);
++	if (ret)
++		return NULL;
++
++	pmic_reg_read(p, PFUZE100_DEVICEID, &reg);
++	printf("PMIC:  PFUZE100 ID=0x%02x\n", reg);
++
++	/* Set SW1AB stanby volage to 0.975V */
++	pmic_reg_read(p, PFUZE100_SW1ABSTBY, &reg);
++	reg &= ~SW1x_STBY_MASK;
++	reg |= SW1x_0_975V;
++	pmic_reg_write(p, PFUZE100_SW1ABSTBY, reg);
++
++	/* Set SW1AB/VDDARM step ramp up time from 16us to 4us/25mV */
++	pmic_reg_read(p, PFUZE100_SW1ABCONF, &reg);
++	reg &= ~SW1xCONF_DVSSPEED_MASK;
++	reg |= SW1xCONF_DVSSPEED_4US;
++	pmic_reg_write(p, PFUZE100_SW1ABCONF, reg);
++
++	/* Set SW1C standby voltage to 0.975V */
++	pmic_reg_read(p, PFUZE100_SW1CSTBY, &reg);
++	reg &= ~SW1x_STBY_MASK;
++	reg |= SW1x_0_975V;
++	pmic_reg_write(p, PFUZE100_SW1CSTBY, reg);
++
++	/* Set SW1C/VDDSOC step ramp up time from 16us to 4us/25mV */
++	pmic_reg_read(p, PFUZE100_SW1CCONF, &reg);
++	reg &= ~SW1xCONF_DVSSPEED_MASK;
++	reg |= SW1xCONF_DVSSPEED_4US;
++	pmic_reg_write(p, PFUZE100_SW1CCONF, reg);
++
++	return p;
++}
+diff --git a/board/variscite/common/pfuze.h b/board/variscite/common/pfuze.h
+new file mode 100644
+index 0000000..53cfc99
+--- /dev/null
++++ b/board/variscite/common/pfuze.h
+@@ -0,0 +1,13 @@
++/*
++ * Copyright 2014 Freescale Semiconductor, Inc.
++ *
++ * SPDX-License-Identifier:	GPL-2.0+
++ */
++
++#ifndef __PFUZE_BOARD_HELPER__
++#define __PFUZE_BOARD_HELPER__
++
++struct pmic *pfuze_common_init(unsigned char i2cbus);
++int pfuze_mode_init(struct pmic *p, u32 mode);
++
++#endif
+diff --git a/arch/arm/include/asm/arch-mx6/sys_proto.h b/arch/arm/include/asm/arch-mx6/sys_proto.h
+index 8387da5..21d5b9a 100644
+--- a/arch/arm/include/asm/arch-mx6/sys_proto.h
++++ b/arch/arm/include/asm/arch-mx6/sys_proto.h
+@@ -53,12 +53,13 @@ const char *get_imx_type(u32 imxtype);
+ unsigned imx_ddr_size(void);
+ u32 is_cpu_pop_package(void);
+ 
+-void set_vddsoc(u32 mv);
+ #ifdef CONFIG_LDO_BYPASS_CHECK
+ int check_ldo_bypass(void);
+ int check_1_2G(void);
+-void set_anatop_bypass(void);
++int set_anatop_bypass(int wdog_reset_pin);
+ void ldo_mode_set(int ldo_bypass);
++void prep_anatop_bypass(void);
++void finish_anatop_bypass(void);
+ #endif
+ 
+ /*
+diff --git a/board/variscite/mx6var_som/mx6var_som_spl.c b/board/variscite/mx6var_som/mx6var_som_spl.c
+index 9d95b0a..d6220b6 100755
+--- a/board/variscite/mx6var_som/mx6var_som_spl.c
++++ b/board/variscite/mx6var_som/mx6var_som_spl.c
+@@ -31,7 +31,7 @@ DECLARE_GLOBAL_DATA_PTR;
+ 
+ static enum boot_device boot_dev;
+ enum boot_device get_boot_device(void);
+-int check_1_2G_only(void);
++int check_1_2G(void);
+ static ulong sdram_size;
+ 
+ static var_eeprom_config_struct_t g_var_eeprom_cfg;
+@@ -722,7 +722,7 @@ static void legacy_spl_dram_init(void)
+ #ifdef CONFIG_DDR_2GBO
+ 			spl_dram_init_mx6q_2g();
+ #else
+-			if (check_1_2G_only())
++			if (check_1_2G())
+ 				spl_dram_init_mx6q_2g();
+ 			else
+ 				spl_dram_init_mx6q_1g();
+diff --git a/arch/arm/cpu/armv7/mx6/soc.c b/arch/arm/cpu/armv7/mx6/soc.c
+index 83c8428..605661b 100644
+--- a/arch/arm/cpu/armv7/mx6/soc.c
++++ b/arch/arm/cpu/armv7/mx6/soc.c
+@@ -23,6 +23,12 @@
+ #include <asm/arch/mxc_hdmi.h>
+ #include <asm/arch/crm_regs.h>
+ 
++enum ldo_reg {
++	LDO_ARM,
++	LDO_SOC,
++	LDO_PU,
++};
++
+ struct scu_regs {
+ 	u32	ctrl;
+ 	u32	config;
+@@ -130,18 +136,32 @@ void init_aips(void)
+ 	writel(0x00000000, &aips2->opacr4);
+ }
+ 
++static void clear_ldo_ramp(void)
++{
++	struct anatop_regs *anatop = (struct anatop_regs *)ANATOP_BASE_ADDR;
++	int reg;
++
++	/* ROM may modify LDO ramp up time according to fuse setting, so in
++	 * order to be in the safe side we neeed to reset these settings to
++	 * match the reset value: 0'b00
++	 */
++	reg = readl(&anatop->ana_misc2);
++	reg &= ~(0x3f << 24);
++	writel(reg, &anatop->ana_misc2);
++}
++
+ /*
+- * Set the VDDSOC
++ * Set the PMU_REG_CORE register
+  *
+- * Mask out the REG_CORE[22:18] bits (REG2_TRIG) and set
+- * them to the specified millivolt level.
++ * Set LDO_SOC/PU/ARM regulators to the specified millivolt level.
+  * Possible values are from 0.725V to 1.450V in steps of
+  * 0.025V (25mV).
+  */
+-void set_vddsoc(u32 mv)
++static int set_ldo_voltage(enum ldo_reg ldo, u32 mv)
+ {
+ 	struct anatop_regs *anatop = (struct anatop_regs *)ANATOP_BASE_ADDR;
+-	u32 val, reg = readl(&anatop->reg_core);
++	u32 val, step, old, reg = readl(&anatop->reg_core);
++	u8 shift;
+ 
+ 	if (mv < 725)
+ 		val = 0x00;	/* Power gated off */
+@@ -150,20 +170,37 @@ void set_vddsoc(u32 mv)
+ 	else
+ 		val = (mv - 700) / 25;
+ 
+-	/*
+-	 * Mask out the REG_CORE[22:18] bits (REG2_TRIG)
+-	 * and set them to the calculated value (0.7V + val * 0.25V)
+-	 */
+-	reg = (reg & ~(0x1F << 18)) | (val << 18);
++	clear_ldo_ramp();
++
++	switch (ldo) {
++	case LDO_SOC:
++		shift = 18;
++		break;
++	case LDO_PU:
++		shift = 9;
++		break;
++	case LDO_ARM:
++		shift = 0;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	old = (reg & (0x1F << shift)) >> shift;
++	step = abs(val - old);
++	if (step == 0)
++		return 0;
++
++	reg = (reg & ~(0x1F << shift)) | (val << shift);
+ 	writel(reg, &anatop->reg_core);
+ 
+-	/* ROM may modify LDO ramp up time according to fuse setting for safe,
+-	 * we need to reset these settings to match the reset value: 0'b00
++	/*
++	 * The LDO ramp-up is based on 64 clock cycles of 24 MHz = 2.6 us per
++	 * step
+ 	 */
+-	reg = readl(&anatop->ana_misc2);
+-	reg &= ~(0x3f << 24);
+-	writel(reg, &anatop->ana_misc2);
++	udelay(3 * step);
+ 
++	return 0;
+ }
+ 
+ static void imx_set_wdog_powerdown(bool enable)
+@@ -435,6 +472,13 @@ int arch_cpu_init(void)
+ 	return 0;
+ }
+ 
++int board_postclk_init(void)
++{
++	set_ldo_voltage(LDO_SOC, 1175);	/* Set VDDSOC to 1.175V */
++
++	return 0;
++}
++
+ #ifndef CONFIG_SYS_DCACHE_OFF
+ void enable_caches(void)
+ {
+@@ -562,30 +606,87 @@ int check_1_2G(void)
+ 
+ 	return result;
+ }
+-int check_1_2G_only(void)
++
++void set_wdog_reset(struct wdog_regs *wdog)
+ {
+-	u32 reg;
+-	int result = 0;
+-	struct iim_regs *iim = (struct iim_regs *)IMX_IIM_BASE;
+-	struct fuse_bank *bank = &iim->bank[0];
+-	struct fuse_bank0_regs *fuse_bank0 =
+-			(struct fuse_bank0_regs *)bank->fuse_regs;
++	u32 reg = readw(&wdog->wcr);
++	/*
++	 * use WDOG_B mode to reset external pmic because it's risky for the
++	 * following watchdog reboot in case of cpu freq at lowest 400Mhz with
++	 * ldo-bypass mode. Because boot frequency maybe higher 800Mhz i.e. So
++	 * in ldo-bypass mode watchdog reset will only triger POR reset, not
++	 * WDOG reset. But below code depends on hardware design, if HW didn't
++	 * connect WDOG_B pin to external pmic such as i.mx6slevk, we can skip
++	 * these code since it assumed boot from 400Mhz always.
++	 */
++	reg = readw(&wdog->wcr);
++	reg |= 1 << 3;
++	/*
++	 * WDZST bit is write-once only bit. Align this bit in kernel,
++	 * otherwise kernel code will have no chance to set this bit.
++	 */
++	reg |= 1 << 0;
++	writew(reg, &wdog->wcr);
++}
+ 
+-	reg = readl(&fuse_bank0->cfg3);
+-	if (((reg >> 16) & 0x3) == 0x3)
+-		result = 1;
++static int arm_orig_podf;
++void set_arm_freq_400M(bool is_400M)
++{
++	struct mxc_ccm_reg *mxc_ccm = (struct mxc_ccm_reg *)CCM_BASE_ADDR;
+ 
+-	return result;
++	if (is_400M)
++		writel(0x1, &mxc_ccm->cacrr);
++	else
++		writel(arm_orig_podf, &mxc_ccm->cacrr);
+ }
+ 
+-void set_anatop_bypass(void)
++void prep_anatop_bypass(void)
+ {
+-	struct anatop_regs *anatop = (struct anatop_regs *)ANATOP_BASE_ADDR;
++	struct mxc_ccm_reg *mxc_ccm = (struct mxc_ccm_reg *)CCM_BASE_ADDR;
++
++	arm_orig_podf = readl(&mxc_ccm->cacrr);
++	/*
++	 * Downgrade ARM speed to 400Mhz as half of boot 800Mhz before ldo
++	 * bypassed, also downgrade internal vddarm ldo to 0.975V.
++	 * VDDARM_IN 0.975V + 125mV = 1.1V < Max(1.3V)
++	 * otherwise at 800Mhz(i.mx6dl):
++	 * VDDARM_IN 1.175V + 125mV = 1.3V = Max(1.3V)
++	 * We need provide enough gap in this case.
++	 * skip if boot from 400M.
++	 */
++	if (!arm_orig_podf)
++		set_arm_freq_400M(true);
++#if !defined(CONFIG_MX6DL) && !defined(CONFIG_MX6SX)
++	set_ldo_voltage(LDO_ARM, 975);
++#else
++	set_ldo_voltage(LDO_ARM, 1150);
++#endif
++}
++
++int set_anatop_bypass(int wdog_reset_pin)
++{
++	struct anatop_regs *anatop= (struct anatop_regs*)ANATOP_BASE_ADDR;
++	struct wdog_regs *wdog;
+ 	u32 reg = readl(&anatop->reg_core);
+ 
+ 	/* bypass VDDARM/VDDSOC */
+ 	reg = reg | (0x1F << 18) | 0x1F;
+ 	writel(reg, &anatop->reg_core);
++
++	if (wdog_reset_pin == 2)
++		wdog = (struct wdog_regs *) WDOG2_BASE_ADDR;
++	else if (wdog_reset_pin == 1)
++		wdog = (struct wdog_regs *) WDOG1_BASE_ADDR;
++	else
++		return arm_orig_podf;
++	set_wdog_reset(wdog);
++	return arm_orig_podf;
++}
++
++void finish_anatop_bypass(void)
++{
++	if (!arm_orig_podf)
++		set_arm_freq_400M(false);
+ }
+ #endif
+ 
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index 3dabe28..9f2c24d 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -38,6 +38,9 @@
+ #if CONFIG_I2C_MXC
+ #include <i2c.h>
+ #include <asm/imx-common/mxc_i2c.h>
++#include <power/pmic.h>
++#include <power/pfuze100_pmic.h>
++#include "../common/pfuze.h"
+ #endif
+ #include <mmc.h>
+ #include <fsl_esdhc.h>
+@@ -499,44 +502,13 @@ static int setup_pmic_voltages(void)
+ 	return 0;
+ }
+ 
+-
+-#ifdef CONFIG_LDO_BYPASS_CHECK
+-void ldo_mode_set(int ldo_bypass)
+-{
+-	unsigned char value;
+-	ldo_bypass = 1;	/* ldo disabled on any Variscite SOM  */
+-
+-	/* switch to ldo_bypass mode , boot on 800Mhz */
+-	if (ldo_bypass) {
+-		/* increase VDDARM/VDDSOC 1.42 */
+-		if (i2c_read(0x8, 0x20, 1, &value, 1)) {
+-			printf("Read SW1AB error!\n");
+-			return;
+-		}
+-		value &= ~0x3f;
+-		value |= 0x29;
+-		if (i2c_write(0x8, 0x20, 1, &value, 1)) {
+-			printf("Set SW1AB error!\n");
+-			return;
+-		}
+-		/* increase VDDARM/VDDSOC 1.42 */
+-		if (i2c_read(0x8, 0x2E, 1, &value, 1)) {
+-			printf("Read SW1C error!\n");
+-			return;
+-		}
+-		value &= ~0x3f;
+-		value |= 0x29;
+-		if (i2c_write(0x8, 0x2E, 1, &value, 1)) {
+-			printf("Set SW1C error!\n");
+-			return;
+-		}
+-
+-		set_anatop_bypass();
+-		printf("switched to ldo_bypass mode!\n");
+-	}
++#ifdef CONFIG_I2C_MXC
++void setup_local_i2c(void){
++	setup_i2c(0, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info1));
++	setup_i2c(1, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info2));
++	setup_i2c(2, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info3));
+ }
+ #endif
+-#endif
+ 
+ static void setup_iomux_uart(void)
+ {
+@@ -930,14 +902,6 @@ static void setup_display(void)
+ #endif /* CONFIG_VIDEO_IPUV3 */
+ #endif /* #if  !defined(CONFIG_SPL_BUILD) */
+ 
+-#ifdef CONFIG_I2C_MXC
+-void setup_local_i2c(void){
+-	setup_i2c(0, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info1));
+-	setup_i2c(1, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info2));
+-	setup_i2c(2, CONFIG_SYS_I2C_SPEED, 0x7f, I2C_PADS_INFO(i2c_pad_info3));
+-}
+-#endif
+-
+ /*
+  * Do not overwrite the console
+  * Use always serial for U-Boot console
+@@ -1100,20 +1064,136 @@ int board_init(void)
+ 	gd->bd->bi_boot_params = CONFIG_SYS_SDRAM_BASE + 0x100;
+ 	gd->bd->bi_arch_number = CONFIG_MACH_VAR_SOM_MX6;
+ 	
+-	
+-#ifdef CONFIG_I2C_MXC
+-#if  !defined(CONFIG_SPL_BUILD)
+ 	setup_local_i2c();
+-	if (!is_som_solo())
+-		ret = setup_pmic_voltages();
+-	if (ret)
+-		return -1;
+-#endif /* !defined(CONFIG_SPL_BUILD) */
+-#endif
+ 
+ 	return ret;
+ }
+ 
++static struct pmic *pfuze;
++int power_init_board(void)
++{
++	unsigned int reg, ret;
++
++	pfuze = pfuze_common_init(I2C_PMIC);
++	if (!pfuze)
++		return -ENODEV;
++
++	ret = pfuze_mode_init(pfuze, APS_PFM);
++	if (ret < 0)
++		return ret;
++
++	/* Increase VGEN3 from 2.5 to 2.8V */
++	pmic_reg_read(pfuze, PFUZE100_VGEN3VOL, &reg);
++	reg &= ~LDO_VOL_MASK;
++	reg |= LDOB_2_80V;
++	pmic_reg_write(pfuze, PFUZE100_VGEN3VOL, reg);
++
++	/* Increase VGEN5 from 2.8 to 3V */
++	pmic_reg_read(pfuze, PFUZE100_VGEN5VOL, &reg);
++	reg &= ~LDO_VOL_MASK;
++	reg |= LDOB_3_00V;
++	pmic_reg_write(pfuze, PFUZE100_VGEN5VOL, reg);
++
++	/* set SW1AB staby volatage 0.975V*/
++	pmic_reg_read(pfuze, PFUZE100_SW1ABSTBY, &reg);
++	reg &= ~0x3f;
++	reg |= 0x1b;
++	pmic_reg_write(pfuze, PFUZE100_SW1ABSTBY, reg);
++
++	/* set SW1AB/VDDARM step ramp up time from 16us to 4us/25mV */
++	pmic_reg_read(pfuze, PFUZE100_SW1ABCONF, &reg);
++	reg &= ~0xc0;
++	reg |= 0x40;
++	pmic_reg_write(pfuze, PFUZE100_SW1ABCONF, reg);
++
++	/* set SW1C staby volatage 0.975V*/
++	pmic_reg_read(pfuze, PFUZE100_SW1CSTBY, &reg);
++	reg &= ~0x3f;
++	reg |= 0x1b;
++	pmic_reg_write(pfuze, PFUZE100_SW1CSTBY, reg);
++
++	/* set SW1C/VDDSOC step ramp up time to from 16us to 4us/25mV */
++	pmic_reg_read(pfuze, PFUZE100_SW1CCONF, &reg);
++	reg &= ~0xc0;
++	reg |= 0x40;
++	pmic_reg_write(pfuze, PFUZE100_SW1CCONF, reg);
++
++	return 0;
++}
++
++#ifdef CONFIG_LDO_BYPASS_CHECK
++void ldo_mode_set(int ldo_bypass)
++{
++	unsigned char value;
++	int is_400M;
++	unsigned char vddarm;
++	struct pmic *p = pfuze;
++
++	if (!p) {
++		printf("No PMIC found!\n");
++		return;
++	}
++	ldo_bypass = 1;	/* ldo disabled on any Variscite SOM  */
++
++	/* switch to ldo_bypass mode , boot on 800Mhz */
++	if (ldo_bypass) {
++		prep_anatop_bypass();
++
++		/* decrease VDDARM for 400Mhz DQ:1.1V, DL:1.275V */
++		pmic_reg_read(p, PFUZE100_SW1ABVOL, &value);
++		value &= ~0x3f;
++#if defined(CONFIG_MX6DL)
++		value |= 0x27;
++#else
++		value |= 0x20;
++#endif
++		pmic_reg_write(p, PFUZE100_SW1ABVOL, value);
++
++		/* increase VDDSOC to 1.3V */
++		pmic_reg_read(p, PFUZE100_SW1CVOL, &value);
++		value &= ~0x3f;
++		value |= 0x28;
++		pmic_reg_write(p, PFUZE100_SW1CVOL, value);
++
++		/*
++		 * MX6Q:
++		 * VDDARM:1.15V@800M; VDDSOC:1.175V@800M
++		 * VDDARM:0.975V@400M; VDDSOC:1.175V@400M
++		 * MX6DL:
++		 * VDDARM:1.175V@800M; VDDSOC:1.175V@800M
++		 * VDDARM:1.075V@400M; VDDSOC:1.175V@400M
++		 */
++		is_400M = set_anatop_bypass(2);
++		if (is_400M)
++#if defined(CONFIG_MX6DL)
++			vddarm = 0x1f;
++#else
++			vddarm = 0x1b;
++#endif
++		else
++#if defined(CONFIG_MX6DL)
++			vddarm = 0x23;
++#else
++			vddarm = 0x22;
++#endif
++
++		pmic_reg_read(p, PFUZE100_SW1ABVOL, &value);
++		value &= ~0x3f;
++		value |= vddarm;
++		pmic_reg_write(p, PFUZE100_SW1ABVOL, value);
++
++		/* decrease VDDSOC to 1.175V */
++		pmic_reg_read(p, PFUZE100_SW1CVOL, &value);
++		value &= ~0x3f;
++		value |= 0x23;
++		pmic_reg_write(p, PFUZE100_SW1CVOL, value);
++
++		finish_anatop_bypass();
++		printf("switch to ldo_bypass mode!\n");	}
++}
++#endif
++#endif
++
+ #ifdef CONFIG_CMD_BMODE
+ static const struct boot_mode board_boot_modes[] = {
+ 	/* 4 bit bus width */
+diff --git a/include/power/pfuze100_pmic.h b/include/power/pfuze100_pmic.h
+new file mode 100644
+index 0000000..fc32d50
+--- /dev/null
++++ b/include/power/pfuze100_pmic.h
+@@ -0,0 +1,238 @@
++/*
++ *  Copyright (C) 2014 Gateworks Corporation
++ *  Tim Harvey <tharvey@gateworks.com>
++ *
++ * SPDX-License-Identifier:     GPL-2.0+
++ */
++
++#ifndef __PFUZE100_PMIC_H_
++#define __PFUZE100_PMIC_H_
++
++/* PFUZE100 registers */
++enum {
++	PFUZE100_DEVICEID	= 0x00,
++	PFUZE100_REVID		= 0x03,
++	PFUZE100_FABID		= 0x04,
++
++	PFUZE100_SW1ABVOL	= 0x20,
++	PFUZE100_SW1ABSTBY	= 0x21,
++	PFUZE100_SW1ABOFF	= 0x22,
++	PFUZE100_SW1ABMODE	= 0x23,
++	PFUZE100_SW1ABCONF	= 0x24,
++	PFUZE100_SW1CVOL	= 0x2e,
++	PFUZE100_SW1CSTBY	= 0x2f,
++	PFUZE100_SW1COFF	= 0x30,
++	PFUZE100_SW1CMODE	= 0x31,
++	PFUZE100_SW1CCONF	= 0x32,
++	PFUZE100_SW2VOL		= 0x35,
++	PFUZE100_SW2STBY	= 0x36,
++	PFUZE100_SW2OFF		= 0x37,
++	PFUZE100_SW2MODE	= 0x38,
++	PFUZE100_SW2CONF	= 0x39,
++	PFUZE100_SW3AVOL	= 0x3c,
++	PFUZE100_SW3ASTBY	= 0x3D,
++	PFUZE100_SW3AOFF	= 0x3E,
++	PFUZE100_SW3AMODE	= 0x3F,
++	PFUZE100_SW3ACONF	= 0x40,
++	PFUZE100_SW3BVOL	= 0x43,
++	PFUZE100_SW3BSTBY	= 0x44,
++	PFUZE100_SW3BOFF	= 0x45,
++	PFUZE100_SW3BMODE	= 0x46,
++	PFUZE100_SW3BCONF	= 0x47,
++	PFUZE100_SW4VOL		= 0x4a,
++	PFUZE100_SW4STBY	= 0x4b,
++	PFUZE100_SW4OFF		= 0x4c,
++	PFUZE100_SW4MODE	= 0x4d,
++	PFUZE100_SW4CONF	= 0x4e,
++	PFUZE100_SWBSTCON1	= 0x66,
++	PFUZE100_VREFDDRCON	= 0x6a,
++	PFUZE100_VSNVSVOL	= 0x6b,
++	PFUZE100_VGEN1VOL	= 0x6c,
++	PFUZE100_VGEN2VOL	= 0x6d,
++	PFUZE100_VGEN3VOL	= 0x6e,
++	PFUZE100_VGEN4VOL	= 0x6f,
++	PFUZE100_VGEN5VOL	= 0x70,
++	PFUZE100_VGEN6VOL	= 0x71,
++
++	PMIC_NUM_OF_REGS	= 0x7f,
++};
++
++/*
++ * Buck Regulators
++ */
++
++#define PFUZE100_SW1ABC_SETP(x)	((x - 3000) / 250)
++
++/* SW1A/B/C Output Voltage Configuration */
++#define SW1x_0_300V 0
++#define SW1x_0_325V 1
++#define SW1x_0_350V 2
++#define SW1x_0_375V 3
++#define SW1x_0_400V 4
++#define SW1x_0_425V 5
++#define SW1x_0_450V 6
++#define SW1x_0_475V 7
++#define SW1x_0_500V 8
++#define SW1x_0_525V 9
++#define SW1x_0_550V 10
++#define SW1x_0_575V 11
++#define SW1x_0_600V 12
++#define SW1x_0_625V 13
++#define SW1x_0_650V 14
++#define SW1x_0_675V 15
++#define SW1x_0_700V 16
++#define SW1x_0_725V 17
++#define SW1x_0_750V 18
++#define SW1x_0_775V 19
++#define SW1x_0_800V 20
++#define SW1x_0_825V 21
++#define SW1x_0_850V 22
++#define SW1x_0_875V 23
++#define SW1x_0_900V 24
++#define SW1x_0_925V 25
++#define SW1x_0_950V 26
++#define SW1x_0_975V 27
++#define SW1x_1_000V 28
++#define SW1x_1_025V 29
++#define SW1x_1_050V 30
++#define SW1x_1_075V 31
++#define SW1x_1_100V 32
++#define SW1x_1_125V 33
++#define SW1x_1_150V 34
++#define SW1x_1_175V 35
++#define SW1x_1_200V 36
++#define SW1x_1_225V 37
++#define SW1x_1_250V 38
++#define SW1x_1_275V 39
++#define SW1x_1_300V 40
++#define SW1x_1_325V 41
++#define SW1x_1_350V 42
++#define SW1x_1_375V 43
++#define SW1x_1_400V 44
++#define SW1x_1_425V 45
++#define SW1x_1_450V 46
++#define SW1x_1_475V 47
++#define SW1x_1_500V 48
++#define SW1x_1_525V 49
++#define SW1x_1_550V 50
++#define SW1x_1_575V 51
++#define SW1x_1_600V 52
++#define SW1x_1_625V 53
++#define SW1x_1_650V 54
++#define SW1x_1_675V 55
++#define SW1x_1_700V 56
++#define SW1x_1_725V 57
++#define SW1x_1_750V 58
++#define SW1x_1_775V 59
++#define SW1x_1_800V 60
++#define SW1x_1_825V 61
++#define SW1x_1_850V 62
++#define SW1x_1_875V 63
++
++#define SW1x_NORMAL_MASK  0x3f
++#define SW1x_STBY_MASK    0x3f
++#define SW1x_OFF_MASK     0x3f
++
++#define SW1xCONF_DVSSPEED_MASK 0xc0
++#define SW1xCONF_DVSSPEED_2US  0x00
++#define SW1xCONF_DVSSPEED_4US  0x40
++#define SW1xCONF_DVSSPEED_8US  0x80
++#define SW1xCONF_DVSSPEED_16US 0xc0
++
++/*
++ * LDO Configuration
++ */
++
++/* VGEN1/2 Voltage Configuration */
++#define LDOA_0_80V	0
++#define LDOA_0_85V	1
++#define LDOA_0_90V	2
++#define LDOA_0_95V	3
++#define LDOA_1_00V	4
++#define LDOA_1_05V	5
++#define LDOA_1_10V	6
++#define LDOA_1_15V	7
++#define LDOA_1_20V	8
++#define LDOA_1_25V	9
++#define LDOA_1_30V	10
++#define LDOA_1_35V	11
++#define LDOA_1_40V	12
++#define LDOA_1_45V	13
++#define LDOA_1_50V	14
++#define LDOA_1_55V	15
++
++/* VGEN3/4/5/6 Voltage Configuration */
++#define LDOB_1_80V	0
++#define LDOB_1_90V	1
++#define LDOB_2_00V	2
++#define LDOB_2_10V	3
++#define LDOB_2_20V	4
++#define LDOB_2_30V	5
++#define LDOB_2_40V	6
++#define LDOB_2_50V	7
++#define LDOB_2_60V	8
++#define LDOB_2_70V	9
++#define LDOB_2_80V	10
++#define LDOB_2_90V	11
++#define LDOB_3_00V	12
++#define LDOB_3_10V	13
++#define LDOB_3_20V	14
++#define LDOB_3_30V	15
++
++#define LDO_VOL_MASK	0xf
++#define LDO_EN		4
++
++/*
++ * Boost Regulator
++ */
++
++/* SWBST Output Voltage */
++#define SWBST_5_00V	0
++#define SWBST_5_05V	1
++#define SWBST_5_10V	2
++#define SWBST_5_15V	3
++
++#define SWBST_VOL_MASK	0x3
++#define SWBST_MODE_MASK	0x6
++#define SWBST_MODE_OFF	(2 << 0)
++#define SWBST_MODE_PFM	(2 << 1)
++#define SWBST_MODE_AUTO	(2 << 2)
++#define SWBST_MODE_APS	(2 << 3)
++
++/*
++ * Regulator Mode Control
++ *
++ * OFF: The regulator is switched off and the output voltage is discharged.
++ * PFM: In this mode, the regulator is always in PFM mode, which is useful
++ *      at light loads for optimized efficiency.
++ * PWM: In this mode, the regulator is always in PWM mode operation
++ *	regardless of load conditions.
++ * APS: In this mode, the regulator moves automatically between pulse
++ *	skipping mode and PWM mode depending on load conditions.
++ *
++ * SWxMODE[3:0]
++ * Normal Mode  |  Standby Mode	|      value
++ *   OFF		OFF		0x0
++ *   PWM		OFF		0x1
++ *   PFM		OFF		0x3
++ *   APS		OFF		0x4
++ *   PWM		PWM		0x5
++ *   PWM		APS		0x6
++ *   APS		APS		0x8
++ *   APS		PFM		0xc
++ *   PWM		PFM		0xd
++ */
++#define OFF_OFF		0x0
++#define PWM_OFF		0x1
++#define PFM_OFF		0x3
++#define APS_OFF		0x4
++#define PWM_PWM		0x5
++#define PWM_APS		0x6
++#define APS_APS		0x8
++#define APS_PFM		0xc
++#define PWM_PFM		0xd
++
++#define SWITCH_SIZE	0x7
++
++int power_pfuze100_init(unsigned char bus);
++#endif
+-- 
+2.1.0
+

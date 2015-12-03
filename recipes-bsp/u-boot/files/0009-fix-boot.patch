@@ -1,0 +1,104 @@
+From 2349a077da6d09bcb13dc62a1056e52c76bd0247 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Tue, 1 Dec 2015 18:19:53 +0100
+Subject: [PATCH] fix warm boot
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+backport of
+
+From 5c92edc21c3e12873cd3de5ed73d85d48b8828ac Mon Sep 17 00:00:00 2001
+From: Anson Huang <b20788@freescale.com>
+Date: Thu, 23 Jan 2014 14:00:18 +0800
+Subject: [PATCH] imx6: ensure AHB clock is 132MHz in low freq boot mode
+
+For low freq boot mode(ARM boot up with 396MHz), ROM
+will not set AHB clock to 132MHz, and the reset value of
+AHB divider is incorrect which will lead to wrong AHB
+rate, need to correct it. To enable low freq boot mode,
+need to set BOOT_CFG2[2] to high, tested on i.MX6Q/DL
+SabreSD board and i.MX6SL EVK board.
+
+and
+
+From 16197bb8ba5962ab3a9c065c06c91c8c288c0f8e Mon Sep 17 00:00:00 2001
+From: Anson Huang <b20788@freescale.com>
+Date: Thu, 23 Jan 2014 14:00:19 +0800
+Subject: [PATCH] imx6: make sure MMDC_CHx_MASK is clear to avoid warm reset
+ failure
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ arch/arm/cpu/armv7/mx6/soc.c | 40 ++++++++++++++++++++++++++--------------
+ 1 file changed, 26 insertions(+), 14 deletions(-)
+
+diff --git a/arch/arm/cpu/armv7/mx6/soc.c b/arch/arm/cpu/armv7/mx6/soc.c
+index 6a0d629..c1dc6e0 100644
+--- a/arch/arm/cpu/armv7/mx6/soc.c
++++ b/arch/arm/cpu/armv7/mx6/soc.c
+@@ -384,26 +384,40 @@ static void imx_set_pcie_phy_power_down(void)
+ 	writel(val, IOMUXC_BASE_ADDR + 0x4);
+ }
+ 
+-#define SRC_SCR_WARM_RESET_ENABLE	0
++static void set_ahb_rate(u32 val)
++{
++	struct mxc_ccm_reg *mxc_ccm = (struct mxc_ccm_reg *)CCM_BASE_ADDR;
++	u32 reg, div;
+ 
+-static void init_src(void)
++	div = get_periph_clk() / val - 1;
++	reg = readl(&mxc_ccm->cbcdr);
++
++	writel((reg & (~MXC_CCM_CBCDR_AHB_PODF_MASK)) |
++		(div << MXC_CCM_CBCDR_AHB_PODF_OFFSET), &mxc_ccm->cbcdr);
++}
++
++static void clear_mmdc_ch_mask(void)
+ {
+-	struct src *src_regs = (struct src *)SRC_BASE_ADDR;
+-	u32 val;
++	struct mxc_ccm_reg *mxc_ccm = (struct mxc_ccm_reg *)CCM_BASE_ADDR;
+ 
+-	/*
+-	 * force warm reset sources to generate cold reset
+-	 * for a more reliable restart
+-	 */
+-	val = readl(&src_regs->scr);
+-	val &= ~(1 << SRC_SCR_WARM_RESET_ENABLE);
+-	writel(val, &src_regs->scr);
++	/* Clear MMDC channel mask */
++	writel(0, &mxc_ccm->ccdr);
+ }
+ 
+ int arch_cpu_init(void)
+ {
+ 	init_aips();
+-	set_vddsoc(1200);	/* Set VDDSOC to 1.2V */
++
++	/* Need to clear MMDC_CHx_MASK to make warm reset work. */
++	clear_mmdc_ch_mask();
++
++	/*
++	 * When low freq boot is enabled, ROM will not set AHB
++	 * freq, so we need to ensure AHB freq is 132MHz in such
++	 * scenario.
++	 */
++	if (mxc_get_clock(MXC_ARM_CLK) == 396000000)
++		set_ahb_rate(132000000);
+ 
+ 	imx_set_wdog_powerdown(false); /* Disable PDE bit of WMCR register */
+ 
+@@ -418,8 +432,6 @@ int arch_cpu_init(void)
+ #endif
+ #endif
+ 
+-	init_src();
+-
+ 	return 0;
+ }
+ 
+-- 
+2.1.0
+
