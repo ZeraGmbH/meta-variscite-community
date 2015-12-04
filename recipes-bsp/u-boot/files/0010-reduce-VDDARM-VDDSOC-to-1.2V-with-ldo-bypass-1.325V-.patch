@@ -1,0 +1,50 @@
+From 1d907de7df36ecc4c73f67675d1bb2a7174d6174 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Fri, 4 Dec 2015 11:56:12 +0100
+Subject: [PATCH] reduce VDDARM/VDDSOC to 1.2V - with ldo-bypass 1.325V is too
+ high
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index 86651ac..40c11bf 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -540,24 +540,24 @@ void ldo_mode_set(int ldo_bypass)
+ 			return;
+ 		}
+ 
+-		/* increase VDDARM/VDDSOC 1.42 */
++		/* set VDDARM/VDDSOC 1.2V */
+ 		if (i2c_read(0x8, 0x20, 1, &value, 1)) {
+ 			printf("Read SW1AB error!\n");
+ 			return;
+ 		}
+ 		value &= ~0x3f;
+-		value |= 0x29;
++		value |= 0x24;
+ 		if (i2c_write(0x8, 0x20, 1, &value, 1)) {
+ 			printf("Set SW1AB error!\n");
+ 			return;
+ 		}
+-		/* increase VDDARM/VDDSOC 1.42 */
++		/* set VDDARM/VDDSOC 1.2V */
+ 		if (i2c_read(0x8, 0x2E, 1, &value, 1)) {
+ 			printf("Read SW1C error!\n");
+ 			return;
+ 		}
+ 		value &= ~0x3f;
+-		value |= 0x29;
++		value |= 0x24;
+ 		if (i2c_write(0x8, 0x2E, 1, &value, 1)) {
+ 			printf("Set SW1C error!\n");
+ 			return;
+-- 
+2.1.0
+

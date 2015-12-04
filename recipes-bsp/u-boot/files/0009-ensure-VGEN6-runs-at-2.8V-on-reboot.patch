@@ -1,0 +1,39 @@
+From 8443545ba7044103ac5d6a6b0611cbc7ab83072f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 3 Dec 2015 17:08:15 +0100
+Subject: [PATCH] ensure VGEN6 runs at 2.8V on reboot
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index c9446b0..4e1d4d0 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -528,6 +528,18 @@ void ldo_mode_set(int ldo_bypass)
+ 			return;
+ 		}
+ 
++		/* set VGEN6 to 2.8V / on reboot it is maxed to 3.3V */
++		if (i2c_read(0x8, 0x71, 1, &value, 1)) {
++			printf("Read VGEN6CTL error!\n");
++			return;
++		}
++		value &= ~0x0f;
++		value |= 0x0A;
++		if (i2c_write(0x8, 0x71, 1, &value, 1)) {
++			printf("Set VGEN6CTL error!\n");
++			return;
++		}
++
+ 		/* increase VDDARM/VDDSOC 1.42 */
+ 		if (i2c_read(0x8, 0x20, 1, &value, 1)) {
+ 			printf("Read SW1AB error!\n");
+-- 
+2.1.0
+

@@ -1,0 +1,59 @@
+From bd02f7ebddf38b90e4da5d0284c20c20b7b91349 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 3 Dec 2015 13:23:33 +0100
+Subject: [PATCH] optionally dump pfuze registers at when kernel is about to be
+ booted
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index 949af82..121ec12 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -565,6 +565,37 @@ void ldo_mode_set(int ldo_bypass)
+ 
+ 		set_anatop_bypass();
+ 		printf("switched to ldo_bypass mode!\n");
++
++		const char* debug_pfuse = getenv("dump_pfuze");
++		if(debug_pfuse && !strcmp(debug_pfuse, "1")) {
++			int iRegLine, iRegNo, iRegAddr, iExtended;
++			printf("Dump PFuze Functional Page:\n");
++			for(iRegLine = 0; iRegLine<8; iRegLine++) {
++				iRegAddr = iRegLine*16;
++				printf("%02X: ", iRegAddr);
++				for(iRegNo = 0; iRegNo<16; iRegNo++) {
++					iRegAddr = iRegLine*16 + iRegNo;
++					i2c_read(0x8, iRegAddr, 1, &value, 1);
++					printf("%02X ", value);
++				}
++				printf("\n");
++			}
++			for(iExtended=1; iExtended<=2; iExtended++) {
++				printf("Dump PFuze Extended Page %i:\n", iExtended);
++				value = (unsigned char)iExtended;
++				i2c_write(0x8, 0x7F, 1, &value, 1);
++				for(iRegLine = 8; iRegLine<16; iRegLine++) {
++					iRegAddr = iRegLine*16;
++					printf("%02X: ", iRegAddr);
++					for(iRegNo = 0; iRegNo<16; iRegNo++) {
++						iRegAddr = iRegLine*16 + iRegNo;
++						i2c_read(0x8, iRegAddr, 1, &value, 1);
++						printf("%02X ", value);
++					}
++					printf("\n");
++				}
++			}
++		}
+ 	}
+ }
+ #endif
+-- 
+2.1.0
+

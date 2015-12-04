@@ -16,8 +16,13 @@ SRC_URI = " \
     file://0005-arm-board-use-__weak.patch \
     file://0006-common-main.c-make-show_boot_progress-__weak.patch \
     file://0007-arm-Switch-to-mno-unaligned-access-when-supported-by.patch \
+    file://0008-ensure-that-VGEN2EN-is-set.patch \
+    file://0009-ensure-VGEN6-runs-at-2.8V-on-reboot.patch \
+    file://0010-reduce-VDDARM-VDDSOC-to-1.2V-with-ldo-bypass-1.325V-.patch \
+    file://0011-add-a-delay-to-give-pmic-changes-time-to-apply.patch \
+    file://0012-optionally-dump-pfuze-registers-at-when-kernel-is-ab.patch \
 "
-SRCREV = "c65c565d6acc27dde27fd7283136d24fd5273884"
+SRCREV = "a2bb081c08f8e18cee3ffbf577adb9bdb7d5a6f9"
 
 S = "${WORKDIR}/git"
 

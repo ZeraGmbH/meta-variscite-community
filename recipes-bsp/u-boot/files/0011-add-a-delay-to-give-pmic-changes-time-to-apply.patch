@@ -1,0 +1,28 @@
+From 8a7394e592de5ba35b109eeb97bbabe557a0f432 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Fri, 4 Dec 2015 10:50:18 +0100
+Subject: [PATCH] add a delay to give pmic changes time to apply
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index 121ec12..6ba8349 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -563,6 +563,7 @@ void ldo_mode_set(int ldo_bypass)
+ 			return;
+ 		}
+ 
++		udelay(100000);
+ 		set_anatop_bypass();
+ 		printf("switched to ldo_bypass mode!\n");
+ 
+-- 
+2.1.0
+

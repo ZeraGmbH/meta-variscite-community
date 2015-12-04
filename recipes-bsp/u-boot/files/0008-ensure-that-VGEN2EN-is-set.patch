@@ -1,0 +1,38 @@
+From 2bfc8ebed4d04141dd1c606841b924f1c090f852 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 3 Dec 2015 16:34:11 +0100
+Subject: [PATCH] ensure that VGEN2EN is set
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ board/variscite/mx6var_som/mx6var_som.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/board/variscite/mx6var_som/mx6var_som.c b/board/variscite/mx6var_som/mx6var_som.c
+index a050bf7..c9446b0 100755
+--- a/board/variscite/mx6var_som/mx6var_som.c
++++ b/board/variscite/mx6var_som/mx6var_som.c
+@@ -517,6 +517,17 @@ void ldo_mode_set(int ldo_bypass)
+ 
+ 	/* switch to ldo_bypass mode , boot on 800Mhz */
+ 	if (ldo_bypass) {
++		/* enable VGEN2EN - this is off at warmstart */
++		if (i2c_read(0x8, 0x6D, 1, &value, 1)) {
++			printf("Read VGEN2CTL error!\n");
++			return;
++		}
++		value |= 0x10;
++		if (i2c_write(0x8, 0x6D, 1, &value, 1)) {
++			printf("Set VGEN2CTL error!\n");
++			return;
++		}
++
+ 		/* increase VDDARM/VDDSOC 1.42 */
+ 		if (i2c_read(0x8, 0x20, 1, &value, 1)) {
+ 			printf("Read SW1AB error!\n");
+-- 
+2.1.0
+
