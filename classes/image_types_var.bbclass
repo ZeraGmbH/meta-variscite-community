@@ -1,5 +1,8 @@
 inherit image_types_fsl
 
+# simple boot partition volume id -> makes life easier for our udev/udisk rules
+BOOTDD_VOLUME_ID = "boot-varis"
+
 SDCARD_GENERATION_COMMAND_mx6 = "generate_imx_var_sdcard"
 
 generate_imx_var_sdcard () {
