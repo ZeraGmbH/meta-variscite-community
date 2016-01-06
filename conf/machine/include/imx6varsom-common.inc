@@ -9,3 +9,5 @@ MACHINE_FIRMWARE_append_mx6 = " linux-firmware-wl12xx"
 
 MACHINE_FEATURES += " pci bluetooth touchscreen wifi"
 
+MACHINE_EXTRA_RRECOMMENDS += "udev-udisks-rules-variscite"
+
