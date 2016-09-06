@@ -46,6 +46,8 @@ SRC_URI += " \
     file://upstream-backport/wifi/0019-wlcore-use-correct-LAA-bit.patch \
     file://upstream-backport/wifi/0020-wlcore-fix-copy-paste-bug-assign-from-src-struct-not.patch \
     file://upstream-backport/pm/0001-PM-domains-quieten-down-generic-pm-domains.patch \
+    file://upstream-backport/gcc6/0001-fix-the-compile-issue-under-gcc6.patch \
+    file://upstream-backport/gcc6/0002-gc_hal_kernel_platform_imx6q14-fix-indention-for-nit.patch \
     \
     file://boundarydevices/0001-Add-ft5x06-cap-touch-driver.patch \
     file://boundarydevices/0002-wlcore-add-initial-device-tree-support-to-the-sdio-m.patch \

@@ -1,0 +1,42 @@
+From f85c70f8dee33cb58d7f266e78f6a4506f86ef2d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andreas=20M=C3=BCller?= <schnitzeltony@googlemail.com>
+Date: Thu, 25 Aug 2016 16:10:25 +0200
+Subject: [PATCH] gc_hal_kernel_platform_imx6q14: fix indention for nitpicking
+ gcc6
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Andreas Müller <schnitzeltony@googlemail.com>
+---
+ .../kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c    | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c b/drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c
+index df7bc8c..53f5b99 100644
+--- a/drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c
++++ b/drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c
+@@ -446,16 +446,16 @@ gckPLATFORM_AdjustParam(
+     pdata = pdev->dev.platform_data;
+     if (pdata) {
+         Args->contiguousBase = pdata->reserved_mem_base;
+-       Args->contiguousSize = pdata->reserved_mem_size;
++        Args->contiguousSize = pdata->reserved_mem_size;
+      }
+ #endif
+     if (Args->contiguousSize == 0)
+-       gckOS_Print("Warning: No contiguous memory is reserverd for gpu.!\n ");
++        gckOS_Print("Warning: No contiguous memory is reserverd for gpu.!\n ");
+ 
+     Args->gpu3DMinClock = initgpu3DMinClock;
+ 
+-  if(Args->physSize == 0)
+-    Args->physSize = 0x80000000;
++    if(Args->physSize == 0)
++        Args->physSize = 0x80000000;
+ 
+     return gcvSTATUS_OK;
+ }
+-- 
+2.5.5
+
