@@ -1,20 +1,20 @@
 #! /bin/bash
 
 # write-card.sh
-# (c) Copyright 2013-2015 Andreas Müller <schnitzeltony@googlemail.com>
+# (c) Copyright 2013-2016 Andreas Müller <schnitzeltony@googlemail.com>
 # Licensed under terms of GPLv2
 #
 # This script writes image to sdcard and aligns rootfs partition to max size.
 
 SelectRootfs() {
 	# OE environment found?
-	if [ -z $OE_BASE ]; then
-		echo "The environment variable OE_BASE is not set. It is usually set before running bitbake."
+	if [ -z $BUILDDIR ]; then
+		echo "The environment variable BUILDDIR is not set. It is usually set before running bitbake."
 		exit 1
 	fi
 	iCount=0
 	strSelection=
-	for grep_result in `grep -h TMPDIR $OE_BASE/conf/*.conf | sed -e s/' '/''/g -e s/'\"'/''/g`; do
+	for grep_result in `grep -h TMPDIR $BUILDDIR/conf/*.conf | sed -e s/' '/''/g -e s/'\"'/''/g`; do
 		# exclude comments
 		tmp_dir=`echo $grep_result | grep '^TMPDIR='`
 		if [ ! -z $tmp_dir ]; then
@@ -31,7 +31,7 @@ SelectRootfs() {
 
 	# were files found?
 	if [ $iCount -eq 0 ]; then
-		echo "No rootfs files found in ${OE_BUILD_TMPDIR}-\*"
+		echo "No rootfs files found in ${TMPDIR}-\*"
 		exit 1
 	fi
 	
