@@ -22,7 +22,7 @@ SelectRootfs() {
 		fi
 	done
 	for BuildPath in ${TMPDIR}-*; do
-		for i in `find ${BuildPath}/deploy/images/${MACHINE} -name *.sdcard | sort` ; do
+		for i in `find ${BuildPath}/deploy/images/${MACHINE} -name *.sdcard -o -name *.wic.gz | sort` ; do
 			iCount=`expr $iCount + 1`
 			RootFileNameArr[${iCount}]=$i
 			strSelection="$strSelection $iCount "`basename $i`
@@ -91,8 +91,12 @@ run_root() {
 
 	# rootfs write/resize to card fit
 	time(
-	    echo "Writing $RootFsFile to $DevicePath..."
-		dd of=$DevicePath if=$RootFsFile bs=1024K
+		echo "Writing $RootFsFile to $DevicePath..."
+		if echo $RootFsFile | grep -q '.wic.gz'; then
+			gunzip -c $RootFsFile | dd of=$DevicePath bs=1024K
+		else
+			dd of=$DevicePath if=$RootFsFile bs=1024K
+		fi
 		sync
 	    echo "Resizing ${DevicePath}2..."
 		parted -s $DevicePath -- resizepart 2 -0
